@@ -1,0 +1,36 @@
+# Credentials
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Dependencies and environments
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Generated data and outputs
+data/
+indexes/
+runs/
+out/
+artifacts/
+logs/
+*.log
+
+# Model and document caches
+.cache/
+runtime-cache/
+*.bin
+*.pt
+*.pth
+*.ckpt
+
+# Editors and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp

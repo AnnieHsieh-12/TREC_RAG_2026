@@ -1,0 +1,4 @@
+# CPU smoke-test versions used during the 2026-08-14 cleanup verification.
+# CUDA builds may use the platform-specific PyTorch wheel with the same base version.
+torch==2.7.1
+transformers==4.55.2

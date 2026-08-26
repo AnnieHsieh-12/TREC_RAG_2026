@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "team_id": "pi-serini",
+    "run_id": "test-run",
+    "narrative_id": "1",
+    "narrative": "Example narrative",
+    "run_desc": "validator contract fixture",
+    "type": "automatic",
+    "title": "",
+    "prompt": "agentic_rag_baseline_v1",
+    "generator": "fixture-model"
+  },
+  "references": [
+    "shard_00001_1",
+    "shard_00002_2",
+    "shard_00003_3"
+  ],
+  "answer": [
+    {
+      "text": "A supported statement.",
+      "citations": [0]
+    },
+    {
+      "text": "An answer sentence may have no citation.",
+      "citations": []
+    }
+  ]
+}

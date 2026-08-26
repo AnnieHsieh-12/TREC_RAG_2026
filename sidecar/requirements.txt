@@ -1,0 +1,4 @@
+requests
+python-dotenv
+pytrec-eval-terrier
+fastembed
