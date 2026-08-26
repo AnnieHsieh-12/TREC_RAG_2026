@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-"""照官方 v0.6.0 規格逐條驗證兩份提交檔。
+"""Validate Retrieval and RAG outputs against organizer format rules.
 
-    python3 tools/official_format_check.py <r_output.tsv> <rag_output.jsonl> <topics.tsv>
-
-每一條檢查都對應 references/retrieval-task.md 或 rag-task.md 的原文條款，
-註解裡放逐字引用 —— 這樣被問到「你怎麼知道合規」時答案就是這支檔案。
+Usage: ``python3 tools/official_format_check.py retrieval.tsv rag.jsonl topics.tsv``
 """
 import json
 from pathlib import Path

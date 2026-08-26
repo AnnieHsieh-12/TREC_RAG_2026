@@ -2,8 +2,6 @@ import { pathToFileURL } from "node:url";
 import { runIterativeAgenticRag, type IterativeOptions } from "./iterative_runner";
 export function parse(argv:string[],env:NodeJS.ProcessEnv=process.env):IterativeOptions{const r:Record<string,string|boolean|undefined>={}; for(let i=0;i<argv.length;i++){const a=argv[i]; if(a==='--force'||a==='--resume'){r[a.slice(2)]=true;continue;} if(!a.startsWith('--'))throw new Error(`Unexpected ${a}`); const v=argv[++i]; if(!v||v.startsWith('--'))throw new Error(`Missing ${a}`); r[a.slice(2)]=v;} return{runId:req(r['run-id'],'--run-id'),teamId:str(r['team-id'])||'pi-serini',outputDir:req(r['output-dir'],'--output-dir'),topicsPath:req(r.topics,'--topics'),qrelsDir:req(r['qrels-dir'],'--qrels-dir'),pyseriniBaseUrl:str(r['pyserini-base-url'])||env.PYSERINI_BASE_URL||'http://api.castorini.uwaterloo.ca',pyseriniIndex:str(r['pyserini-index'])||env.PYSERINI_INDEX||'climbmix-400b',pyseriniTokenEnv:str(r['pyserini-token-env'])||'PYSERINI_API_TOKEN',limitTopics:r['limit-topics']?Number(r['limit-topics']):undefined,initialDocs:r['initial-docs']?Number(r['initial-docs']):5,docsPerIteration:r['docs-per-iteration']?Number(r['docs-per-iteration']):4,maxDocumentsRead:r['max-documents-read']?Number(r['max-documents-read']):12,maxIterations:r['max-iterations']?Number(r['max-iterations']):3,documentReadLimit:r['document-read-limit']?Number(r['document-read-limit']):200,llm:llmCfg(str(r['llm-model'])||'gpt-oss-120b',env),...(str(r['llm-writer-model'])?{llmWriter:llmCfg(str(r['llm-writer-model']),env)}:{}),...(str(r['llm-query-model'])?{llmQuery:llmCfg(str(r['llm-query-model']),env)}:{}),force:r.force===true,resume:r.resume===true,env};}
 
-// "codex:gpt-5.6-sol" / "openai:gpt-5.6" / "gpt-oss-120b"(不加前綴 = NCHC)
-// codex 走本機 sidecar 的 /llm(ChatGPT 訂閱額度, API $0);見 specs/README.md 的模型角色分配。
 export function llmCfg(spec:string,env:NodeJS.ProcessEnv){
   const i=spec.indexOf(':'); const provider=i>0?spec.slice(0,i):'nchc'; const model=i>0?spec.slice(i+1):spec;
   if(provider==='codex')return{provider:'codex_llm',model,baseUrl:env.SIDECAR_URL||'http://127.0.0.1:8765',temperature:0,maxTokens:8192};
@@ -11,8 +9,6 @@ export function llmCfg(spec:string,env:NodeJS.ProcessEnv){
   return{provider:'nchc_llm',model,apiKeyEnv:'NCHC_API_KEY',baseUrl:env.NCHC_BASE_URL||'https://portal.genai.nchc.org.tw/api/v1',temperature:0,maxTokens:2048};
 }
 
-// 版本檔可以自己宣告要用哪些模型（讓「V3」不論怎麼呼叫都是同一個東西）。
-// 命令列的 --llm-*-model 仍然優先，方便臨時換模型做 A/B。
 export function applyVersionModels(opts:IterativeOptions,models:{base?:string;writer?:string;query?:string},env:NodeJS.ProcessEnv=process.env):IterativeOptions{
   const out={...opts};
   if(models.base&&!process.argv.includes("--llm-model"))out.llm=llmCfg(models.base,env) as any;

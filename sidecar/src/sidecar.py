@@ -1,4 +1,4 @@
-"""Local sidecar for the team-stack-w4 TypeScript pipeline.
+"""Local evidence and model sidecar for the CFDA final pipeline.
 
 Exposes our verified Python modules over localhost HTTP so the TS runner can
 layer them without reimplementation. Stdlib only (no flask/fastapi in venv).
@@ -13,9 +13,7 @@ Endpoints (JSON in/out):
   POST /sentence_evidence {sentences:[{text, docids[]}], budget_chars?}
                           -> {sentences:[{excerpts:[{docid, text}]}]}
   POST /llm               {prompt, model?} -> {text, calls_total}
-                          Codex CLI bridge (ChatGPT Plus quota, default
-                          gpt-5.6-sol). W5 user directive: dev-loop controller
-                          runs on subscription quota, not the API key.
+                          Codex CLI bridge (default gpt-5.6-sol).
 The first three endpoints are LLM-free; /llm is the one deliberate exception.
 
 Run: .venv/bin/python3 -m src.sidecar  (listens on 127.0.0.1:8765)
@@ -44,9 +42,8 @@ os.makedirs(DOCTEXT_CACHE, exist_ok=True)
 _token = load_token()
 _encoder = None
 _encoder_lock = threading.Lock()
-# 死鎖修正（kuan 8/8 handoff）：舊版把整個 HTTP 抓取（含 429/5xx 的分鐘級重試）
-# 包在一把全域鎖裡，一篇倒楣文件就能拖垮整台；/health 不碰鎖所以探針照過。
-# 改成「併發上限 4 ＋ 100ms 節流分開做」—— 對 Pyserini 一樣溫和，慢抓只擋自己。
+# Bound concurrent retrieval requests and pace them independently so a slow
+# document fetch does not block the entire service.
 _fetch_slots = threading.BoundedSemaphore(
     int(os.environ.get("SIDECAR_FETCH_CONCURRENCY", "4")))
 _pace_lock = threading.Lock()
@@ -146,11 +143,7 @@ def handle_rerank(body):
         return {"order": docids, "scored": 0, "missing": len(missing)}
     scores = list(get_encoder().rerank(query, texts))
     minilm_order = [d for d, _ in sorted(zip(kept, scores), key=lambda kv: -kv[1])]
-    # RRF-fuse the incoming (BM25-based) order with the MiniLM order, 1:1.
-    # Measured on this corpus (M5 sweep): MiniLM ALONE over a deep pool
-    # collapses (0.478 nDCG@10) - it needs the BM25 prior; the 1:1 fusion is
-    # the champion recipe (0.740). Returning pure MiniLM order here cost
-    # -7pp in the first R1 ladder run.
+    # RRF-fuse the incoming BM25-based order with the MiniLM order, 1:1.
     fused = {}
     for ranking in (kept, minilm_order):
         for pos, d in enumerate(ranking):
@@ -188,9 +181,7 @@ def get_embedder():
 
 
 def handle_aspect_coverage(body):
-    """W5-2 additive gap check: which checklist aspects have zero semantically
-    matching answer sentences? Same model + threshold as the coverage gate
-    (bge-small-en-v1.5, cosine >= 0.5, calibrated in src/coverage.py)."""
+    """Find checklist aspects with no semantically matching answer sentence."""
     import numpy as np
     aspects = body["aspects"]
     sentences = body["sentences"]

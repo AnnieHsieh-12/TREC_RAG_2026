@@ -60,10 +60,8 @@ class NCHCClient:
             payload["tool_choice"] = tool_choice
         if max_tokens:
             payload["max_tokens"] = max_tokens
-        # vLLM-backed endpoints accept a sampling seed; harmless if the
-        # backend ignores it. Note (documented in ROADMAP): a seed does NOT
-        # guarantee determinism on a shared endpoint - dynamic batching and
-        # MoE routing make identical requests diverge regardless.
+        # vLLM-backed endpoints accept a sampling seed, though shared-service
+        # batching can still make repeated requests nondeterministic.
         if seed is not None:
             payload["seed"] = seed
 
@@ -183,12 +181,11 @@ class EvidenceLog:
 
 
 def _snippet(doc, query=None, max_chars=300, max_passages=2):
-    """Returns (snippet_text, passages). When `query` is given, the snippet
-    is assembled from the most query-relevant chunks of the document (M1,
-    src/passages.py) instead of a naive fixed-character prefix; `passages`
-    is the raw per-chunk selection detail (offset/score/reason) for tracing,
-    or [] when no query was given (falls back to the old prefix behavior) or
-    the document had no chunks to score."""
+    """Return a query-focused snippet and its passage-selection details.
+
+    Without a query or scoreable chunks, return a fixed-length prefix and an
+    empty passage list.
+    """
     if doc is None:
         return "", []
     text = doc.get("text", "") if isinstance(doc, dict) else str(doc)

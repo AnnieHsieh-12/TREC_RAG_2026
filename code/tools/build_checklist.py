@@ -10,6 +10,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SIDECAR_ROOT = REPO_ROOT / "sidecar"
 sys.path.insert(0, str(SIDECAR_ROOT))
 
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(SIDECAR_ROOT / ".env.local")
+
 from src.checklist import generate_checklists_file  # noqa: E402
 from src.common import load_nchc_key  # noqa: E402
 from src.rag_tools import NCHCClient  # noqa: E402

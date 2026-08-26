@@ -1,29 +1,8 @@
-"""Generate a coverage checklist for ANY topic from its narrative alone.
+"""Generate a narrative-derived aspect checklist for each topic.
 
-Why this exists: the official nugget file (data/nuggets/rag25-dev-nuggets.jsonl)
-only covers the 22 development topics - the organizers do not release nuggets
-for the 119 official test topics (by design, so participants cannot tune
-against the answer key). The M2 coverage gate therefore needs a checklist
-source that works from nothing but the narrative text, which is the one thing
-every topic (dev or test) always has.
-
-Methodology note: this mirrors how the official dev nuggets were themselves
-produced - the organizers used LLM-automated nugget creation (AutoNuggetizer;
-arXiv 2411.09607, arXiv 2504.15068 report that fully-automatic nugget
-creation/assignment correlates strongly with human evaluation). We decompose
-at the sub-narrative level (what CoverageItem actually gates on) rather than
-the individual-nugget level, since the gate needs "which aspects must be
-covered", not an exhaustive fact list.
-
-Output format is IDENTICAL to the official nugget file (one JSON object per
-topic: {"qid": ..., "nuggets": [{"text", "mapped_sub_narrative",
-"importance"}]}), so src/coverage.py's load_coverage_items() reads generated
-checklists and official nuggets interchangeably - the gate does not know or
-care which source it got.
-
-Official nuggets remain the EVALUATION ground truth on dev topics; generated
-checklists are what the gate runs on everywhere (dev included, so dev runs
-mirror test-topic conditions).
+Output is JSONL with one object per topic and nugget-shaped aspect records.
+The checklist guides sufficiency decisions and dense answer structure; it is
+not an evaluation label or a replacement for organizer qrels.
 """
 
 import json

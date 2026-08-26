@@ -84,7 +84,7 @@ export type DenseAnswerPromptInput = AnswerGenerationPromptInput & {
   checklist?: string[];
 };
 
-// W5-1: fill the 1024-word budget with dense, atomic, entity-rich sentences.
+// Fill the 1024-word budget with dense, atomic, entity-rich sentences.
 // Motivated by measurement (our answers averaged 213-245 words = 21% of the
 // cap) and literature: nugget recall rises monotonically with length
 // (Crucible 0.599->0.717->0.812) and the strict-vital metric has no verbosity

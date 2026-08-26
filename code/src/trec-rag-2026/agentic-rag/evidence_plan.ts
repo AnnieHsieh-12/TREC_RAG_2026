@@ -1,25 +1,3 @@
-// Evidence Ledger v2 —— 自 annie/peiju 的 agentic-research 忠實移植（V6，階段 ⑨）。
-//
-// 來源：
-//   annie/peiju/src/trec-rag-2026/agentic-research/finalize_research.ts   （執法規則）
-//   annie/peiju/src/trec-rag-2026/agentic-research/session_state.ts       （EvidenceRecord、minimumCoveredAnswerSentences）
-//   annie/peiju/src/trec-rag-2026/agentic-research/schemas.ts             （RecordEvidenceParamsSchema）
-//   annie/peiju/tests/trec-rag-2026/agentic_rag_v2.test.ts                （record_evidence 的行為）
-//
-// ⚠️ `record_evidence.ts` 本身在她的 repo 裡是 untracked、沒進版控，複本裡也沒有。
-//    這裡照 schema + 測試斷言重建：exact_quote 必須逐字出現在該文件的曝光文字裡，
-//    否則 throw；evidence_id 是 `evidence-N`（1 起算）。
-//
-// 與先前 `evidence_ledger.ts`（近似版）的根本差別：
-//   近似版 = 事後檢查。句子先寫完，再回頭用 supportScore >= 0.45 判斷要不要改指/拿掉引用。
-//   本版   = 生成時強制。模型必須先交出 evidence record（逐字引文 + 該引文支持的 claim），
-//            claim 必須「等於」最終句子；違規直接拋錯，由呼叫端重新生成。
-//            —— 這才是原作者拿到 weighted support 0.9402 / FS 89.6% / NS 2.4% 的機制。
-//
-// 我們的 pipeline 是程式控制迴圈、不是 tool-calling agent，所以對應關係是：
-//   她的 read_document / find_in_document 曝光  →  我們的 readDocs（docid → 已讀文字）
-//   她的 research plan subquestions            →  我們的 aspects（decomposeAspects 的產物）
-//   她的 fail() 讓 agent 重呼叫 finalize        →  我們在生成端重試（帶著錯誤訊息）
 
 export type EvidenceRecord = {
   evidence_id: string;
@@ -34,7 +12,7 @@ export type Subquestion = { id: string; original_text: string; priority: "requir
 
 export type AnswerPlanSentence = { text: string; citations: string[]; evidence_ids: string[] };
 
-/** 她的 fail()：拋出可讀的原因，由呼叫端決定重試或退回。 */
+/** A readable validation failure that lets the caller retry or fall back. */
 export class LedgerViolation extends Error {
   constructor(message: string) {
     super(message);
@@ -42,8 +20,6 @@ export class LedgerViolation extends Error {
   }
 }
 
-// ── 自 session_state.ts 逐字移植 ──────────────────────────────────────────
-// evidence-ledger-v2：「解釋型」的子問題至少要兩句話撐；原子事實一句就夠。
 export function minimumCoveredAnswerSentences(subquestion: Subquestion): number {
   const text = subquestion.original_text.trim().toLowerCase();
   const atomicFactPatterns = [
@@ -59,7 +35,7 @@ export function minimumCoveredAnswerSentences(subquestion: Subquestion): number 
   return atomicFactPatterns.some((pattern) => pattern.test(text)) ? 1 : 2;
 }
 
-/** 曝光紀錄：docid → 我們真的讀進 prompt 的文字。她的 readExposures/findExposures 的等價物。 */
+/** Maps each document ID to the exact text exposed to the model. */
 export class ExposureLedger {
   private exposed = new Map<string, string>();
   readonly records: EvidenceRecord[] = [];
@@ -78,7 +54,7 @@ export class ExposureLedger {
     return this.exposed.get(docid) ?? "";
   }
 
-  /** 自 schemas.ts 的 RecordEvidenceParamsSchema + 測試斷言重建。 */
+  /** Record one evidence span after checking it against exposed text. */
   recordEvidence(params: {
     docid: string;
     subquestion_ids: string[];
@@ -109,22 +85,19 @@ export class ExposureLedger {
   }
 }
 
-// 逐字比對前只把空白正規化 —— 換行/縮排是我們送進 prompt 時加的，不該因此判定造假。
 function normalize(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-// ── 自 finalize_research.ts 逐字移植（answer_plan 那一段的四條規則）──────────
 /**
- * 檢查 answer_plan 是否合規。任何一條不過就 throw LedgerViolation —— 對應她的 fail()。
- * 回傳通過驗證的句子（只留 text + citations，evidence 已完成它的任務）。
+ * Validate an answer plan and return the supported text/citation pairs.
  */
 export function enforceAnswerPlan(args: {
   ledger: ExposureLedger;
   answerPlan: AnswerPlanSentence[];
   subquestions: Subquestion[];
-  /** "evidence-ledger-v2" 才套用「解釋型子問題至少兩句」的深度要求 */
-  policy: "evidence-ledger-v1" | "evidence-ledger-v2";
+  /** The strict policy requires at least two sentences for explanatory items. */
+  policy: "basic" | "strict";
 }): { text: string; citations: string[] }[] {
   const { ledger, answerPlan, subquestions, policy } = args;
   const fail = (msg: string) => {
@@ -145,16 +118,13 @@ export function enforceAnswerPlan(args: {
       if (!record) fail(`answer_plan[${index}] references unknown evidence_id: ${id}`);
       return record!;
     });
-    // 規則 2：evidence 的 claim 必須「等於」最終句子 —— 不能先寫句子再補引文。
     if (evidence.some((record) => normalize(record.claim) !== normalize(text)))
       fail(
         `every evidence record for answer_plan[${index}] must use a claim exactly equal to the final sentence text.`,
       );
-    // 規則 3：第一個 citation 要對應第一筆 evidence record。
     if (evidence[0]?.docid !== sentence.citations[0])
       fail(`answer_plan[${index}] first citation must be the docid of its first evidence record.`);
     for (const citation of sentence.citations) {
-      // 規則 4：沒被真的讀過的文件不能引用（搜尋 snippet 不算）。
       if (!ledger.hasExposedDoc(citation))
         fail(`answer_plan[${index}] citation was not exposed: ${citation}`);
       if (!evidence.some((record) => record.docid === citation))
@@ -166,14 +136,13 @@ export function enforceAnswerPlan(args: {
     return { text, citations: [...sentence.citations] };
   });
 
-  // 覆蓋深度：每個 required 子問題要有足夠多的、有證據撐的句子代表它。
   for (const subquestion of subquestions.filter((q) => q.priority === "required")) {
     const representedSentenceCount = answerPlan.filter((sentence) =>
       sentence.evidence_ids.some((evidenceId) =>
         evidenceById.get(evidenceId)?.subquestion_ids.includes(subquestion.id),
       ),
     ).length;
-    const minimum = policy === "evidence-ledger-v2" ? minimumCoveredAnswerSentences(subquestion) : 1;
+    const minimum = policy === "strict" ? minimumCoveredAnswerSentences(subquestion) : 1;
     if (representedSentenceCount < minimum)
       fail(
         `required subquestion ${subquestion.id} must be represented by at least ${minimum} distinct evidence-backed answer sentence${minimum === 1 ? "" : "s"}; received ${representedSentenceCount}.`,

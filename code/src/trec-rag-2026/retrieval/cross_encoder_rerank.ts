@@ -1,15 +1,12 @@
 // Local CrossEncoder reranker, no external API calls, no Python required.
-// Model: Xenova/ms-marco-MiniLM-L-6-v2 (ONNX port of cross-encoder/ms-marco-MiniLM-L-6-v2),
-// the same architecture validated in the Python pipeline experiments (nDCG@10 0.62 -> 0.71).
+// Model: Xenova/ms-marco-MiniLM-L-6-v2 (ONNX port of
+// cross-encoder/ms-marco-MiniLM-L-6-v2).
 //
 // Uses the low-level tokenizer + model API (not the high-level `pipeline()` helper) because
 // transformers.js's TextClassificationPipeline does not forward `text_pair` to the tokenizer,
 // so sentence-pair scoring (query, document) is not reachable through the pipeline() shortcut.
 //
-// Safety note: this reranker only reorders a FIXED candidate set (controlled reranking).
-// It must never be used to expand or replace candidate membership -- letting a reranker pull in
-// previously-unseen documents was shown (lab W3/W4 reports) to hurt nDCG sharply because it
-// promotes unjudged documents over known-relevant ones.
+// This reranker only changes the order of a fixed candidate set.
 
 const MODEL_ID = "Xenova/ms-marco-MiniLM-L-6-v2";
 
@@ -19,7 +16,7 @@ let loadedPromise: Promise<LoadedModel> | null = null;
 async function getModel(): Promise<LoadedModel> {
   if (!loadedPromise) {
     loadedPromise = (async () => {
-      const { AutoTokenizer, AutoModelForSequenceClassification, env } = await import("@xenova/transformers");
+      const { AutoTokenizer, AutoModelForSequenceClassification, env } = await import("@huggingface/transformers");
       env.cacheDir = process.env.TRANSFORMERS_CACHE ?? ".cache/transformers";
       const tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID);
       const model = await AutoModelForSequenceClassification.from_pretrained(MODEL_ID);

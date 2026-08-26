@@ -5,7 +5,7 @@ set -euo pipefail
 # Required inputs are supplied by environment variables so competition data
 # and credentials never need to be committed to the repository.
 
-CODE_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+CODE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$CODE_ROOT"
 
 if [[ -f .env.local ]]; then
@@ -50,7 +50,7 @@ run_entry() {
   fi
 
   DENSE_DOCS=60 DENSE_CHARS=1200 ANSWER_QUALITY_GATE="${ANSWER_QUALITY_GATE:-1}" \
-  npx tsx rag/src/trec-rag-2026/agentic-rag/run_iterative_entry.ts \
+  npx tsx src/trec-rag-2026/bounded-rag/run.ts \
     --run-id "$RUN_ID" \
     --output-dir "$OUT" \
     --topics "$topics_file" \

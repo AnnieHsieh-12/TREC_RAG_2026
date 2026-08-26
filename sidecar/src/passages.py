@@ -1,25 +1,9 @@
 import math
 import re
 
-# M1: replace a naive fixed-character document prefix with the most
-# query-relevant chunks of a document. Deliberately "simple lexical, not
-# neural" for this first increment (per docs/ROADMAP.md M1) - BM25 (Robertson
-# & Zaragoza, "The Probabilistic Relevance Framework: BM25 and Beyond", 2009),
-# no embedding model or extra dependency. Token counts are approximated by
-# whitespace-splitting (no tokenizer dependency in this repo's
-# requirements.txt) - close enough for passage-length selection.
-#
-# This is a within-document scoring problem (choosing among one document's
-# own chunks), not corpus-level retrieval, so IDF is computed from how many
-# of THIS document's chunks contain each term rather than corpus statistics
-# we don't have - a term that appears in every chunk of the document isn't
-# discriminative for picking among them, even if it's rare corpus-wide.
-#
-# Selected passages are ordered highest-scoring first when assembled into a
-# snippet, not document order - per the "lost in the middle" effect (Liu et
-# al., "Lost in the Middle: How Language Models Use Long Contexts", arXiv
-# 2307.03172), LLMs attend less to the middle of a long context, so the most
-# relevant material should lead. See docs/agentic-rag-literature-review.md.
+# Select query-relevant chunks within one document using lexical BM25 scores.
+# IDF is estimated across that document's chunks, and selected passages are
+# returned in descending relevance order.
 
 _WORD_RE = re.compile(r"[A-Za-z0-9']+")
 

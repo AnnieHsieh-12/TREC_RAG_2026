@@ -6,9 +6,7 @@
 // `ragdoll/nuggetizer/prompts.py`), assigns the draft answer against them, and reports which vital
 // nuggets the draft misses so the caller can run targeted retrieval for exactly those.
 //
-// Evidence this helps: TICK/STICK (arXiv 2410.03608) reports +7.8% absolute from self-refinement against
-// a self-generated checklist. Nothing here touches gold nuggets — the predicted list is built from the
-// narrative and our own retrieved evidence only.
+// The predicted list is built only from the narrative and retrieved evidence.
 
 import type { LlmClient } from "../../llm/types";
 import type { TopicIdentity } from "../agentic-rag-baseline/contracts";
@@ -108,14 +106,8 @@ async function askForList(llm: LlmClient, system: string, user: string, maxToken
 /**
  * Predict the nugget list for this narrative from our own retrieved evidence, one aspect at a time.
  *
- * The creator prompt consolidates rather than accumulates -- it is told to keep "at most N nuggets (can
- * be less), keeping only the most vital ones" -- so re-running it over more document batches does not
- * grow the list. One pass over 12 documents gave 24 nuggets; four batched passes gave 20. Both are far
- * short of the 41 vital nuggets per topic in the dev gold.
- *
- * The gold's own structure shows the way: its nuggets carry a `mapped_sub_narrative`, and a topic has a
- * median of 8 sub-narratives holding ~5 vital nuggets each. So ask per aspect and take the union -- the
- * consolidation pressure then applies within an aspect instead of across the whole narrative.
+ * Generate nuggets per aspect and take their union so consolidation occurs
+ * within a focused sub-question rather than across the entire narrative.
  */
 export async function predictNuggets(
   llm: LlmClient,

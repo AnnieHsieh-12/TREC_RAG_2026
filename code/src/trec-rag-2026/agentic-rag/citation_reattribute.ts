@@ -1,12 +1,3 @@
-// Re-attribution citation verification (CiteFix / VeriCite style).
-//
-// Instead of DROPPING or weakening under-supported sentences (which costs answer coverage), we RE-POINT
-// each sentence's citation to the reference passage that best supports it, scored by a strong reranker
-// (BGE-Reranker-V2-M3 via NCHC /rerank) used as an NLI/support proxy. This preserves coverage (the
-// sentence stays) while fixing support (the citation now points at genuinely supporting evidence).
-//
-// For each sentence: score it against every reference document; set its citations to the top-scoring
-// references above a threshold (at least the single best one, so it always keeps a valid citation).
 
 export type AnswerSentence = { text: string; citations: number[] };
 export type AnswerDraft = { references: string[]; answer: AnswerSentence[] };
@@ -15,7 +6,6 @@ export type ReattributeStats = { sentences: number; reattributed: number; avg_to
 type Env = NodeJS.ProcessEnv;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// NCHC BGE-Reranker-V2-M3: returns a relevance_score per document for the query.
 async function bgeRerank(query: string, documents: string[], env: Env): Promise<number[]> {
   const base = (env.NCHC_BASE_URL || "https://portal.genai.nchc.org.tw/api/v1").replace(/\/+$/, "");
   const key = (env.NCHC_API_KEY || env.NCHC_GENAI_API_KEY || "").trim();
@@ -49,7 +39,6 @@ export async function reattributeCitations(
   const refs = draft.references;
   if (refs.length === 0 || draft.answer.length === 0) return { draft, stats: { sentences: draft.answer.length, reattributed: 0, avg_top_score: 0 } };
   const refTexts = refs.map((docid) => (docTextByDocid.get(docid) ?? "").slice(0, opts.snippetChars));
-  // References with no fetched text can't be scored — keep them as a passthrough option only.
   const scorable = refs.map((_, i) => refTexts[i].length > 0 ? i : -1).filter((i) => i >= 0);
 
   const newAnswer: AnswerSentence[] = [];
@@ -57,7 +46,7 @@ export async function reattributeCitations(
   let reattributed = 0, topSum = 0, scored = 0;
 
   for (const sent of draft.answer) {
-    let chosen: number[]; // reference indices
+    let chosen: number[];
     if (scorable.length === 0) {
       chosen = sent.citations;
     } else {
@@ -78,7 +67,6 @@ export async function reattributeCitations(
     newAnswer.push({ text: sent.text, citations: docids as unknown as number[] });
   }
 
-  // Rebuild references from used docids, remap docid-citations -> new indices.
   const newRefs: string[] = []; const idxOf = new Map<string, number>();
   for (const s of newAnswer) for (const d of (s.citations as unknown as string[])) if (!idxOf.has(d)) { idxOf.set(d, newRefs.length); newRefs.push(d); }
   const remapped = newAnswer.map((s) => ({ text: s.text, citations: (s.citations as unknown as string[]).map((d) => idxOf.get(d)!).slice(0, 3) }));

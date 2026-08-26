@@ -1,39 +1,15 @@
 #!/usr/bin/env python3
-"""Extend cross-encoder reranking below the protected head.
+"""Extend cross-encoder reranking below a protected ranking head.
 
     python tools/deep_ce_rerank.py out/final-retrieval \
         --depth 5000 --head 100 --out out/final-retrieval/deepce
 
-為什麼要做
-----------
-相關文件的分佈（22 題、三份 qrels、rel>=2）：
+The first ``--head`` documents retain their input order. The remaining
+documents are cross-encoder scored and RRF-fused with their pool order. Output
+uses the standard ``qid Q0 docid rank score tag`` candidate-pool format.
 
-    rank 1–1000     27.9%   ← 現在拿得到分的（池 R@1000 = 0.2937）
-    rank 1001–5000  19.1%   ← 撈到了，但官方每題上限 1000 篇，交不出去
-    從沒撈到        52.9%
-
-而完美檢索在 depth 1000 的天花板是 0.9918 —— 也就是說 1000 這個上限幾乎沒卡到我們，
-recall 低是因為**排序**：rank 101 以後完全沒有語意訊號，只有 BM25 三軌的融合分數。
-CE 只跑了 head-100。把它延伸到池底，就有機會把那 19.1% 拉進前 1000。
-
-關鍵：重排「1–1000 之內」對 R@1000 毫無作用
--------------------------------------------
-Recall@1000 只看哪 1000 篇在集合裡，不看順序。所以 CE 必須看得到 rank 1001+ 的文件，
-才可能把它們拉上來 —— depth 一定要遠大於 1000。這是這支跟一般重排腳本最大的差別。
-
-保護 head 的理由
-----------------
-head-100 已經過三軌重排（BM25 名次 ⊕ MiniLM CE ⊕ bge-m3）+ 校準，nDCG@10 = 0.7456。
-單一 CE 重排它只會變差。所以預設 --head 100 原序保留，只重排 101 以後 ——
-nDCG@10 構造上完全不動，這支腳本的增益純粹來自 recall/MAP。
-
-已知限制：只看文件開頭
-----------------------
-快取裡的文件平均 12,202 字元，而 CE 的 max_length=512 token（約 2,000 字元），
-所以每篇只讀到前 ~16%。相關段落若在後半就看不到，實際增益會低於 oracle 的 +0.196。
-要修得切段落逐段打分再取最大值，成本乘上段數 —— 先量這一版，不夠再說。
-
-輸出的是候選池格式（qid Q0 docid rank score tag），變動 k 的切點另外套。
+The model reads a truncated document prefix (``--maxlen`` tokens), so relevant
+evidence outside that prefix cannot affect its score.
 """
 import argparse
 import collections
@@ -58,12 +34,7 @@ RRF_K = 60
 
 
 def cache_path(docid: str) -> str:
-    """與 src/trec-rag-2026/retrieval/doc_cache.ts 同一套雜湊分桶，兩邊共用同一份快取。
-
-    分隔字元是 NUL（\\x00）不是空格 —— doc_cache.ts 第 40 行的模板字串裡是個
-    不可見的 0x00。用空格會算出完全不同的雜湊、一篇都讀不到，而且因為 read_doc
-    對讀不到的檔是回空字串，錯誤會靜默（CE 收到一堆空文字照樣跑完、給出假結果）。
-    """
+    """Return the path used by the shared TypeScript document cache."""
     h = hashlib.sha1(f"{INDEX}\x00{docid}".encode()).hexdigest()
     safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in INDEX)
     return os.path.join(CACHE, safe, h[:2], f"{h}.json")
@@ -113,7 +84,7 @@ def load_qrels():
 
 
 def evaluate(sel, qrels, cut):
-    """三份 qrels 各算一次再平均。nDCG 用線性 gain、rel<2 歸零（見 VERSIONS.md §2.2）。"""
+    """Average metrics across qrels using linear nDCG gain and rel >= 2."""
     agg = []
     for rel in qrels:
         R, N, M = [], [], []
@@ -156,21 +127,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("run")
     ap.add_argument("--depth", type=int, default=5000)
-    ap.add_argument("--head", type=int, default=100, help="原序保護的前 N 名，不參與重排")
+    ap.add_argument("--head", type=int, default=100, help="input-order prefix excluded from reranking")
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--maxlen", type=int, default=512)
     ap.add_argument("--threads", type=int, default=64)
     ap.add_argument("--out", default="")
-    ap.add_argument("--variant", default="", help="直接指定變體（如 'RRF 1:1'），跳過 qrels 評估 —— 官方題必用")
+    ap.add_argument("--variant", default="", help="select a variant such as 'RRF 1:1' without qrels evaluation")
     args = ap.parse_args()
 
     pool = load_pool(args.run)
     narr = load_narratives(args.run)
     qrels = load_qrels()
 
-    # 這台的 GPU 是 Blackwell（sm_120），機器上每一份 torch 都只編到 sm_90，
-    # .to("cuda") 會炸 "no kernel image is available"。CPU 實測 57.5 對/秒
-    # （64 執行緒），全池 108,622 對約 31 分鐘，夠用，所以不折騰裝 cu128。
+    # CPU is the portable default. Sites with a compatible CUDA build may
+    # change this locally after validating their PyTorch installation.
     dev = "cpu"
     torch.set_num_threads(args.threads)
     tok = AutoTokenizer.from_pretrained(MODEL)
@@ -192,21 +162,21 @@ def main():
                           return_tensors="pt").to(dev)
                 scores.extend(model(**enc).logits.squeeze(-1).float().cpu().tolist())
         scored_total += len(have)
-        # 沒有全文的文件不能給 CE 分數，也不該被踢掉 —— 讓它們保持原相對順序排在後面。
+        # Documents missing cached text retain their relative order at the end.
         have_ids = {d for d, _ in have}
         ranked = [d for d, _ in sorted(zip([d for d, _ in have], scores), key=lambda x: -x[1])]
         ranked += [d for d in tail if d not in have_ids]
         ce_order[qid] = ranked
-        print(f"  {qid}: 重排 {len(have)} 篇（缺全文 {len(tail) - len(have)}）", flush=True)
+        print(f"  {qid}: reranked {len(have)} documents; missing text {len(tail) - len(have)}", flush=True)
 
-    print(f"\n重排 {scored_total:,} 篇，缺全文 {missing_total:,} 篇 "
-          f"（{missing_total / max(1, scored_total + missing_total):.1%}）\n")
+    print(f"\nReranked {scored_total:,} documents; missing text {missing_total:,} "
+          f"({missing_total / max(1, scored_total + missing_total):.1%})\n")
 
     variants = {}
-    for label, w_pool, w_ce in [("原始（BM25 融合）", 1.0, 0.0),
+    for label, w_pool, w_ce in [("Original pool", 1.0, 0.0),
                                 ("RRF 1:1", 1.0, 1.0),
-                                ("RRF 1:2 偏 CE", 1.0, 2.0),
-                                ("純 CE", 0.0, 1.0)]:
+                                ("RRF 1:2", 1.0, 2.0),
+                                ("CE only", 0.0, 1.0)]:
         sel = {}
         for qid in pool:
             docs = [d for d, _ in pool[qid][:args.depth]]
@@ -218,10 +188,9 @@ def main():
             sel[qid] = head + fused
         variants[label] = sel
 
-    # 官方 119 題沒有 qrels：--variant 直接指定（dev 已驗證 RRF 1:1 最優），
-    # 跳過整段評估與配對檢定 —— 那些都要 qrels 才有意義。
+    # Without qrels, use the explicitly selected variant and skip evaluation.
     if args.variant:
-        assert args.variant in variants, f"未知 variant：{list(variants)}"
+        assert args.variant in variants, f"unknown variant: {list(variants)}"
         best = args.variant
         if args.out:
             os.makedirs(args.out, exist_ok=True)
@@ -230,10 +199,10 @@ def main():
                 for qid in sorted(variants[best]):
                     for i, docid in enumerate(variants[best][qid], 1):
                         f.write(f"{qid} Q0 {docid} {i} {1.0 - i * 1e-6:.6f} cfda-deepce\n")
-            print(f"寫出（{best}，未經 qrels 評估）：{p}")
+            print(f"Wrote {best} without qrels evaluation: {p}")
         return
 
-    print(f"{'設定':<20}{'nDCG@10':>10}{'R@1000':>10}{'MAP@1000':>11}{'Δ Recall':>11}")
+    print(f"{'Variant':<20}{'nDCG@10':>10}{'R@1000':>10}{'MAP@1000':>11}{'Delta R':>11}")
     print("─" * 62)
     base = None
     for label, sel in variants.items():
@@ -241,20 +210,19 @@ def main():
         if base is None:
             base = r
         print(f"{label:<20}{n:>10.4f}{r:>10.4f}{m:>11.4f}{r - base:>+11.4f}")
-    print(f"\n對照：完美重排的上限 R@1000 = 0.4895（池 R@5000），理論天花板 0.9918。")
-
     best = max(variants, key=lambda k: evaluate(variants[k], qrels, 1000)[1])
-    print(f"\n逐題配對：{best} vs 原始（R@1000）")
-    a = per_topic_recall(variants["原始（BM25 融合）"], qrels, 1000)
+    print(f"\nPer-topic paired comparison: {best} vs original (R@1000)")
+    a = per_topic_recall(variants["Original pool"], qrels, 1000)
     b = per_topic_recall(variants[best], qrels, 1000)
     d = [b[q] - a[q] for q in a]
     w = sum(1 for x in d if x > 1e-9)
     l = sum(1 for x in d if x < -1e-9)
     se = statistics.stdev(d) / math.sqrt(len(d)) if len(d) > 1 else 0.0
-    print(f"  平均 {statistics.mean(d):+.4f}  95%CI [{statistics.mean(d) - 1.96 * se:+.4f}, "
-          f"{statistics.mean(d) + 1.96 * se:+.4f}]  {w} 勝 {l} 敗")
+    print(f"  mean {statistics.mean(d):+.4f}  95% CI [{statistics.mean(d) - 1.96 * se:+.4f}, "
+          f"{statistics.mean(d) + 1.96 * se:+.4f}]  {w} wins, {l} losses")
     top = sorted(d, reverse=True)[:1]
-    print(f"  最大單題增益 {top[0]:+.4f}（佔總平均的 {top[0] / len(d) / max(1e-9, statistics.mean(d)):.0%}）")
+    print(f"  largest topic gain {top[0]:+.4f} "
+          f"({top[0] / len(d) / max(1e-9, statistics.mean(d)):.0%} of the mean)")
 
     if args.out:
         os.makedirs(args.out, exist_ok=True)
@@ -263,7 +231,7 @@ def main():
             for qid in sorted(variants[best]):
                 for i, docid in enumerate(variants[best][qid], 1):
                     f.write(f"{qid} Q0 {docid} {i} {1.0 - i * 1e-6:.6f} cfda-deepce\n")
-        print(f"\n寫出（{best}）：{p}")
+        print(f"\nWrote {best}: {p}")
 
 
 if __name__ == "__main__":

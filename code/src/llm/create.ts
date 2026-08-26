@@ -15,8 +15,6 @@ import type {
 
 export function createLlmClient(config: LlmClientConfig, env: NodeJS.ProcessEnv = process.env): LlmClient {
   if (config.provider === "nchc_llm") return new NchcLlmClient(config, env);
-  // openai_llm / codex_llm —— V3 起的密集寫作寫手走 codex_llm，
-  // 它打本機 sidecar 的 /llm 端點（sidecar 再 shell 出 Codex CLI），用 ChatGPT 訂閱額度、API $0。
   if (config.provider === "openai_llm") return new OpenAiLlmClient(config, env);
   if (config.provider === "codex_llm") return new CodexLlmClient(config);
   throw new LlmConfigError(`Unsupported LLM provider: ${(config as { provider?: unknown }).provider}`);
@@ -149,7 +147,6 @@ function parseStrictJsonObject(text: string): { ok: true; value: unknown } | { o
         if (isRecord(parsed)) return { ok: true, value: parsed };
       }
     } catch {
-      // Fall through and report the original parse error.
     }
     return { ok: false, message: firstError instanceof Error ? firstError.message : String(firstError) };
   }
@@ -240,12 +237,6 @@ function classifyProviderError(error: unknown): string {
   if (/empty assistant message/i.test(message)) return "LLM_EMPTY_ASSISTANT_MESSAGE";
   if (/HTTP\s+429/.test(message)) return "LLM_RATE_LIMIT";
   if (/HTTP\s+5\d\d/.test(message)) return "LLM_SERVER_ERROR";
-  // "terminated" is undici's literal error message when the server or a proxy closes the connection
-  // mid-request (a premature-close socket error) -- it does not contain the word "network" or "timeout",
-  // so it fell through to LLM_PROVIDER_FAILED and aborted the whole topic on the first blip with zero
-  // retries. A topic that makes many sequential LLM calls (per-aspect generation, reflection, the nugget
-  // loop, grounded revision) has many chances to hit one transient close, so this got more likely to
-  // fire as call counts grew, not because any particular version is broken.
   if (/fetch failed|network|timeout|timed out|ECONNRESET|ETIMEDOUT|terminated|socket hang up|other side closed|EPIPE|ECONNREFUSED/i.test(message)) return "LLM_TRANSIENT_REQUEST_FAILED";
   return "LLM_PROVIDER_FAILED";
 }

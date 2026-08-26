@@ -79,13 +79,12 @@ class OfficialFormatCheckTests(unittest.TestCase):
             self.assertTrue(any("1024" in error for error in errors))
             self.assertTrue(any("越界" in error for error in errors))
 
-    def test_two_runtime_validators_share_the_same_official_rules(self):
+    def test_runtime_uses_one_canonical_validator(self):
         code_root = Path(__file__).resolve().parents[2]
-        paths = [
-            code_root / "src/trec-rag-2026/agentic-rag-baseline/validation.ts",
-            code_root / "rag/src/trec-rag-2026/agentic-rag-baseline/validation.ts",
-        ]
-        self.assertEqual(paths[0].read_bytes(), paths[1].read_bytes())
+        canonical = code_root / "src/trec-rag-2026/agentic-rag-baseline/validation.ts"
+        duplicate = code_root / "rag/src/trec-rag-2026/agentic-rag-baseline/validation.ts"
+        self.assertTrue(canonical.is_file())
+        self.assertFalse(duplicate.exists())
 
     def test_shell_gate_propagates_failure(self):
         code_root = Path(__file__).resolve().parents[2]

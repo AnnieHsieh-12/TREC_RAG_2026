@@ -5,9 +5,6 @@ export type EvidenceDocumentForPrompt = {
   text: string;
 };
 
-// ④ LLM grounded revision (support upgrade): the model reads each answer sentence together with the
-// exact documents it cites, verifies support, rewrites over-claims to match the evidence, weakens or
-// drops unsupported claims. Citations are docid strings (v0.6.0 allows this). One call per topic.
 export function buildGroundedRevisionPrompt(
   topic: TopicIdentity,
   sentences: { text: string; docids: string[] }[],
@@ -110,11 +107,6 @@ export function buildAnswerGenerationPrompt(input: AnswerGenerationPromptInput):
   ].join("\n");
 }
 
-// v4-style comprehensive generation: decompose the narrative into aspects and
-// require the answer to cover EVERY aspect, one factual sentence at a time.
-// This drives nugget coverage up (short single-pass answers cover ~16%; aspect-
-// driven multi-sentence answers cover far more) while staying within the
-// official 1024-word / <=3-citations-per-sentence limits.
 export function buildComprehensiveAnswerPrompt(input: AnswerGenerationPromptInput & { aspects?: string[]; atomic?: boolean }): string {
   const aspectBlock = input.aspects && input.aspects.length > 0
     ? ["Aspects to cover (write at least one grounded sentence for EACH; do not drop any):", ...input.aspects.map((a, i) => `  ${i + 1}. ${a}`)].join("\n")
@@ -144,17 +136,10 @@ export function buildComprehensiveAnswerPrompt(input: AnswerGenerationPromptInpu
   ].join("\n");
 }
 
-// Per-aspect (v4-style) sub-answer: given ONE aspect and the documents retrieved
-// specifically for it, write a few grounded sentences answering just that aspect.
-// Merging these per-aspect sub-answers is what drives high nugget coverage
-// (each aspect gets its own targeted evidence instead of sharing one pool).
 export function buildAspectAnswerPrompt(input: { topic: TopicIdentity; aspect: string; documents: EvidenceDocumentForPrompt[]; alreadyWritten?: string[]; atomic?: { maxWords: number; sentences: number }; expectedFacts?: string[] }): string {
   const already = input.alreadyWritten && input.alreadyWritten.length > 0
     ? ["Already written for this aspect (do NOT repeat these; only add NEW distinct facts not covered here):", ...input.alreadyWritten.map((s) => `  - ${s}`), ""].join("\n")
     : "";
-  // 面向標題只說「寫這個主題」，expected_facts 說「要講到什麼」—— 後者才是 nugget 在量的。
-  // 措辭刻意保守：這些是分解階段從敘述猜的，沒有證據支撐，所以只能當「該找什麼」的指引，
-  // 絕不可以讓模型把它們當成事實直接寫進答案（那會製造無憑據宣稱，NS 會爆掉）。
   const wanted = input.expectedFacts && input.expectedFacts.length > 0
     ? ["What a complete answer is expected to state about this aspect (use as a checklist of what to LOOK FOR in the evidence):",
        ...input.expectedFacts.map((f) => `  - ${f}`),
@@ -167,10 +152,6 @@ export function buildAspectAnswerPrompt(input: { topic: TopicIdentity; aspect: s
     `Aspect to answer: ${input.aspect}`,
     wanted,
     already,
-    // ⑧ 句型。預設是「列舉式長句」—— 刻意往涵蓋率調的（一句塞多個 claim）。
-    // atomic 模式（V2b）反過來：一句一事實、一句一來源。理由見 versions/V2b.ts。
-    // 這是同一個階段的兩個候選，不是誰對誰錯 —— 團隊在別的線上量過，
-    // 列舉式涵蓋較高但支持度崩，原子句相反。本線要用統一評分器重新量一次。
     input.atomic
       ? `Write ${input.atomic.sentences} factual sentences that specifically answer this aspect.`
       : "Write 2-5 factual sentences that specifically answer this aspect.",
@@ -188,15 +169,7 @@ export function buildAspectAnswerPrompt(input: { topic: TopicIdentity; aspect: s
       : [
           "Write DENSE, ENUMERATIVE sentences that state several related claims at once. 25-40 words per sentence is normal and good here.",
         ]),
-    // 得分的 claim 是「X 是個挑戰」這種同族短陳述，所以「把集合的每個成員都點名」是涵蓋率的主要來源。
-    // ⚠️ 但這條規則的實作方式必須跟句型模式一致，否則 prompt 會自相矛盾：
-    // atomic 模式叫模型「五個群體寫五句」，而這裡原本要求「一句話點完五個」，
-    // 連 Good/Bad 例句都用到同一個句子（一邊標 Good、一邊標 Bad）。
-    // V2b 就是這樣跑的 —— 原子指令壓過了集合列舉，涵蓋率從 0.4729 崩到 0.3311（p=0.000）。
-    // 修法：保留「每個成員都要點名」這個目標，但**點名的載體隨模式改變**——
-    // 列舉式放同一句，原子式放連續數句。目標不變，形式不打架。
     "This is scored by how many distinct required claims the answer states. Those claims are short thematic statements, and they come in FAMILIES that share a stem and vary one dimension — for example 'racial inclusion is a challenge', 'gender inclusion is a challenge', 'inclusion of disabled athletes is a challenge'.",
-    // ⚠️ 非原子分支的字句必須與 V2 逐字相同，否則 V2 的既有分數不可比（p=0.000 的對照全部作廢）。
     input.atomic
       ? "So whenever the evidence names a SET of groups, causes, effects, dimensions, stakeholders, or examples, name EVERY member of that set explicitly. Each named member earns credit; a set left as 'various factors' or 'several groups' earns none."
       : "So whenever the evidence names a SET of groups, causes, effects, dimensions, stakeholders, or examples, name EVERY member of that set explicitly in one sentence. Each named member earns credit; a set left as 'various factors' or 'several groups' earns none.",
@@ -230,9 +203,6 @@ export function buildAspectAnswerPrompt(input: { topic: TopicIdentity; aspect: s
   ].join("\n");
 }
 
-// v4-style reflection: after a draft answer is assembled, ask the model which
-// aspects of the narrative are still missing or thinly covered, so we can run
-// extra targeted retrieval+generation passes for them.
 export function buildReflectionPrompt(topic: TopicIdentity, answerText: string): string {
   return [
     "You review a draft answer against a narrative and identify what is still MISSING or only thinly covered.",
@@ -246,18 +216,6 @@ export function buildReflectionPrompt(topic: TopicIdentity, answerText: string):
   ].join("\n");
 }
 
-// One cheap LLM call to list the distinct aspects a narrative asks about.
-// ⑦ 面向分解。`expectedFacts` 打開時，每個面向additionally要吐 2-4 條「一個好答案
-// 該講到的事實」—— 這是照原作者 checklist 產生器的格式補上的。
-//
-// 為什麼補這個：他的 checklist 每個面向帶 expected_facts，我們只有標題。
-// 面向標題（"Athlete Compensation Structures"）只告訴寫手「要寫這個主題」，
-// expected_facts（"NIL 讓大學運動員可以從自己的姓名肖像獲利"）告訴它「要講到什麼」——
-// 而 nugget 涵蓋量的正是後者。他的文件也說 gap-fill 之所以變成 no-op，
-// 是「once the writer organizes by checklist」，也就是 checklist 本身就把洞補掉了。
-//
-// ⚠️ 只從敘述文字產生，絕不餵 nugget 或 qrels —— 119 題正式測資沒有 nugget，
-//    靠 nugget 產出來的 checklist 在正式跑上無法使用，dev 上的分數也會是假的。
 export function buildAspectDecompositionPrompt(topic: TopicIdentity, expectedFacts = false): string {
   return [
     "List every distinct aspect the following narrative asks about, so that together they cover the whole question.",
@@ -310,24 +268,12 @@ function formatDocuments(documents: EvidenceDocumentForPrompt[]): string {
     .join("\n\n");
 }
 
-// ---- 以下自 的 team-stack-w4 移植（V3 密集寫作）----------------------
-// 診斷：答案原本只寫 217-245 詞，官方上限 1024（只用 21%；官方範例 Piika 寫 665 詞）。
-// 文獻確認寫越長涵蓋越高且無字數懲罰。實測 V_strict 0.262 -> 0.408（+17.6pp），
-// 換 gpt-5.6-sol 寫手後 0.414 / FS 96.4%。見 specs/V3.md。
 
 export type DenseAnswerPromptInput = AnswerGenerationPromptInput & {
   checklist?: string[];
-  // S4 列舉式句型（側翼）。給了就把「一句一事實」換成「一句點名一個維度裡的每個成員」。
-  // 只能在 evidence_ledger 打開時使用 —— 長句更容易夾帶沒被支持的成員，ledger 是唯一的安全網。
   enumerative?: { minWords: number; maxWords: number };
 };
 
-// W5-1: fill the 1024-word budget with dense, atomic, entity-rich sentences.
-// Motivated by measurement (our answers averaged 213-245 words = 21% of the
-// cap) and literature: nugget recall rises monotonically with length
-// (Crucible 0.599->0.717->0.812) and the strict-vital metric has no verbosity
-// penalty; GINGER's winning shape is short atomic entity-dense sentences
-// organized by facet.
 export function buildDenseAnswerGenerationPrompt(input: DenseAnswerPromptInput): string {
   const checklistBlock = input.checklist && input.checklist.length > 0
     ? [
@@ -345,8 +291,6 @@ export function buildDenseAnswerGenerationPrompt(input: DenseAnswerPromptInput):
     "",
     ...(input.enumerative
       ? [
-          // S4：gold nugget 本身是無數字的主題性短句，而且會成家族出現 ——
-          // 一句點名整個維度的所有成員，比一句一個事實更容易同時命中一整組 nugget。
           `SENTENCE STYLE - write ENUMERATIVE sentences of ${input.enumerative.minWords}-${input.enumerative.maxWords} words:`,
           "- each sentence must name EVERY member of one dimension that the evidence supports, not just one member;",
           "- Bad: 'The company operates sites in North America.' Good: 'The company operates sites in the United States, Canada and Mexico, opened in 2015, 2017 and 2019 respectively.'",
@@ -381,21 +325,16 @@ export function buildDenseAnswerGenerationPrompt(input: DenseAnswerPromptInput):
   ].join("\n");
 }
 
-// ---- Evidence Ledger v2 的寫作 prompt（V6）-----------------------------
-// 對應 annie/peiju 的 record_evidence + finalize_research 協定：她的 agent 是「先呼叫
-// record_evidence 把逐字引文釘死，才能在 finalize_research 交出 answer_plan」。
-// 我們是單次生成，所以把兩步併成一次 JSON —— 模型必須在同一份輸出裡交出
-// 句子與它的逐字引文，規則由 evidence_ledger_v2.ts 逐字執法，違規就重生成。
 
 export type LedgerAnswerPromptInput = DenseAnswerPromptInput & {
   subquestions: { id: string; text: string }[];
-  /** 上一次違規的原因；重試時附上，對應她的 fail() 把錯誤丟回給 agent */
+  /** Previous validation failure, included when regenerating the answer. */
   violation?: string;
 };
 
 export function buildLedgerAnswerPrompt(input: LedgerAnswerPromptInput): string {
   return [
-    `Prompt version: ${AGENTIC_RAG_BASELINE_PROMPT_VERSION}-ledger-v2`,
+    `Prompt profile: ${AGENTIC_RAG_BASELINE_PROMPT_VERSION}-evidence-plan`,
     "You generate an evidence-grounded TREC RAG answer under an EVIDENCE LEDGER policy.",
     "Use only the provided evidence documents. Do not use outside knowledge.",
     "",
@@ -447,10 +386,6 @@ export function buildLedgerAnswerPrompt(input: LedgerAnswerPromptInput): string 
   ].join("\n");
 }
 
-// ---- 逐句驗證改寫（V3）------------------------------------------------
-// 對每一句比對它的引用證據：完全支持就原封保留；過度宣稱就改寫成證據支持的範圍；
-// 完全沒支持時依 mode 處理 —— drop 直接刪句，weaken 改寫成較弱但有證據的說法。
-// weaken 是為了保涵蓋：在 recall 型指標下刪句 = 刪掉它帶的 nugget。
 
 export type VerifyReviseSentence = {
   text: string;
@@ -474,19 +409,6 @@ export function buildVerifyRevisePrompt(input: VerifyRevisePromptInput): string 
       ? "(none available)"
       : sentence.evidence.map((e) => `- [${e.docid}] ${e.excerpt}`).join("\n"),
   ].join("\n")).join("\n\n");
-  // ⑨ 三種模式，差別在「句子撐不住的時候動什麼」—— 這一個選擇就決定了涵蓋要不要付代價。
-  //
-  //   weaken       改寫成更弱的說法。動的是「過度延伸但有部分支持」的句子，這類很多，
-  //                **而且它們正在涵蓋 nugget** —— 寫弱了引用合格、nugget 卻配不上。實測扣涵蓋 8–10pp。
-  //   drop         只刪完全沒支持的句子。那些是模型憑空生的，本來就配不到 nugget，
-  //                所以傷得比 weaken 小。原作者用這個模式，FS 96.4% / V_strict 0.4137。
-  //   reattribute  **一個字都不改**，只改引用：把句子標到 references 裡真正支持它的那一篇；
-  //                真的整份證據都不支持才刪。
-  //
-  // reattribute 的依據是量出來的：純後處理版（tools/split_citations.py --reattribute）
-  // 讓 V2 的 FS 18.3%→37.6%，而涵蓋 0.4729→0.4867 **不減反增** —— 因為 nugget 是拿
-  // 整篇文字比對的，文字不動涵蓋就不可能掉。這裡把同一件事交給模型做，
-  // 它看得到完整證據，判斷會比後處理的詞彙重疊法準得多。
   const ACTION = {
     weaken: "- Not supported by its citations: rewrite it into a weaker related claim that the excerpts DO support (hedge, narrow, or generalize it); if other cited excerpts support the point, switch its citations to those; remove the sentence only when nothing in any excerpt relates to it.",
     drop: "- Not supported at all: remove the sentence.",
@@ -498,7 +420,6 @@ export function buildVerifyRevisePrompt(input: VerifyRevisePromptInput): string 
     "For each sentence below, compare the sentence against its cited evidence excerpts and act:",
     "- Fully supported: keep the sentence unchanged with the same citations.",
     ...(mode === "reattribute"
-      // reattribute 模式下連「過度延伸」也不准改寫 —— 改寫就是動文字，涵蓋就會開始流失。
       ? ["- Over-extended (partially supported): keep the wording EXACTLY as written. Only fix its citations."]
       : ["- Over-extended (partially supported): rewrite it so it claims ONLY what the excerpts support. Do not add new claims."]),
     ACTION[mode],
@@ -520,22 +441,6 @@ export function buildVerifyRevisePrompt(input: VerifyRevisePromptInput): string 
   ].join("\n");
 }
 
-// ── 第二層引用：把各面向的子答案整合成一篇（移植 CFDA 2025）──────────────
-//
-// 去年 CFDA 的 AG pipeline 是兩層引用：
-//   第一層  每個 sub-query s_i 只用它自己的證據池 T_i 寫出 a_i
-//   第二層  整合 LLM 產出 y = F(q, {[i]: a_i})，**每句標記它取自哪些 a_i**
-//   然後    每句的候選證據 = 它標記到的那些 T_i 的聯集，再逐句驗證支持
-//
-// 我們只有第一層：各面向的句子直接接起來。這造成兩個問題：
-//   1. 讀起來是清單不是文章（面向之間沒有銜接）
-//   2. **每句的出處範圍是全題的證據**，而不是「它真正取材的那個面向」——
-//      我們量到「只引一篇的句子 FS 也只有 39%」，就是因為句子把多篇揉在一起。
-//      標記機制把出處收斂回單一面向的池子，是 FS 天花板的直接解方。
-//
-// ⚠️ 這一層會**重寫文字**，所以有跟 verify_revise(weaken) 同類的風險：
-//    改寫時把具體事實抹平 → nugget 配不上 → 涵蓋掉。prompt 裡因此把
-//    「保留每一個具體事實」列為最高優先，並明確禁止摘要與精簡。
 export function buildIntegrationPrompt(input: {
   topic: TopicIdentity;
   groups: { aspect: string; sentences: string[] }[];

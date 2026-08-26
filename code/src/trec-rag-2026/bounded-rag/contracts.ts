@@ -3,7 +3,7 @@ export const CLIMBMIX_DOCID_RE = /^shard_\d+_\d+$/;
 
 export type AgenticRagBaselineMode = "dev";
 
-// skills v0.6.0 (2026-07-25): the five official required keys are
+// The five official required keys are
 // team_id / narrative_id / narrative / run_id / run_desc; any additional
 // participant-defined fields are explicitly allowed.
 export type AgenticRagOutputMetadata = {
