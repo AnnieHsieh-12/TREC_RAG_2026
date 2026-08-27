@@ -3,10 +3,10 @@ import { runFinalRagPipeline, type IterativeOptions } from "./runner";
 const USAGE = `Usage: npm run run:rag
 
 Required environment variables:
-  TOPICS, QRELS_DIR, CHECKLIST, OPENAI_API_KEY
+  TOPICS, CHECKLIST, OPENAI_API_KEY
 
 Optional environment variables:
-  OUT, RUN_ID, TEAM_ID, SHARDS, SIDECAR_URLS, PYSERINI_TOKENS,
+  QRELS_DIR, OUT, RUN_ID, TEAM_ID, SHARDS, SIDECAR_URLS, PYSERINI_TOKENS,
   SUBMISSION_OUT, PYTHON`;
 export function parse(
   argv: string[],
@@ -61,10 +61,10 @@ export function parse(
           };
   return {
     runId: req(r["run-id"], "--run-id"),
-    teamId: str(r["team-id"]) || "pi-serini",
+    teamId: str(r["team-id"]) || "cfda",
     outputDir: req(r["output-dir"], "--output-dir"),
     topicsPath: req(r.topics, "--topics"),
-    qrelsDir: req(r["qrels-dir"], "--qrels-dir"),
+    qrelsDir: str(r["qrels-dir"]) || undefined,
     pyseriniBaseUrl:
       str(r["pyserini-base-url"]) ||
       env.PYSERINI_BASE_URL ||

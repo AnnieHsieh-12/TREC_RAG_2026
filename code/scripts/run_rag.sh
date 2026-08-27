@@ -22,18 +22,20 @@ fi
 
 : "${OPENAI_API_KEY:?Set OPENAI_API_KEY or create code/.env.local}"
 : "${TOPICS:?Set TOPICS to the input topics TSV}"
-: "${QRELS_DIR:?Set QRELS_DIR to the evaluation qrels directory}"
 : "${CHECKLIST:?Set CHECKLIST to the topic checklist JSONL}"
 
 for required in "$TOPICS" "$CHECKLIST"; do
   [[ -s "$required" ]] || { echo "Missing input: $required" >&2; exit 1; }
 done
-[[ -d "$QRELS_DIR" ]] || { echo "Missing qrels directory: $QRELS_DIR" >&2; exit 1; }
+if [[ -n "${QRELS_DIR:-}" && ! -d "$QRELS_DIR" ]]; then
+  echo "Missing qrels directory: $QRELS_DIR" >&2
+  exit 1
+fi
 
 SHARDS="${SHARDS:-4}"
 OUT="${OUT:-$CODE_ROOT/out/final-rag}"
-RUN_ID="${RUN_ID:-W5c-official119}"
-TEAM_ID="${TEAM_ID:-pi-serini}"
+RUN_ID="${RUN_ID:-cfda-w5c}"
+TEAM_ID="${TEAM_ID:-cfda}"
 SIDECAR_URLS="${SIDECAR_URLS:-http://127.0.0.1:8765}"
 SUBMISSION_OUT="${SUBMISSION_OUT:-$CODE_ROOT/out/submissions/cfda-w5c}"
 PYTHON="${PYTHON:-python3}"
@@ -50,6 +52,11 @@ run_entry() {
   local log_file="$2"
   local shard_id="${3:-0}"
   local token_args=()
+  local qrels_args=()
+
+  if [[ -n "${QRELS_DIR:-}" ]]; then
+    qrels_args=(--qrels-dir "$QRELS_DIR")
+  fi
 
   if [[ "$TOKEN_COUNT" -ge 1 && -n "${TOKENS[0]:-}" ]]; then
     export "CFDA_PYSERINI_TOKEN_$shard_id"="${TOKENS[$((shard_id % TOKEN_COUNT))]}"
@@ -62,7 +69,7 @@ run_entry() {
     --output-dir "$OUT" \
     --topics "$topics_file" \
     "${token_args[@]}" \
-    --qrels-dir "$QRELS_DIR" \
+    "${qrels_args[@]}" \
     --team-id "$TEAM_ID" \
     --resume \
     --sidecar-url "${SIDECARS[$((shard_id % SIDECAR_COUNT))]}" \

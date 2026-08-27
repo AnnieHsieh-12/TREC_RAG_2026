@@ -1,0 +1,1 @@
+{"metadata":{"team_id":"cfda","narrative_id":"example-001","narrative":"Explain a fictional topic.","run_id":"cfda-example","run_desc":"Schema-only example"},"references":["shard_00000_100"],"answer":[{"text":"This sentence demonstrates the required cited-answer structure.","citations":[0]}]}

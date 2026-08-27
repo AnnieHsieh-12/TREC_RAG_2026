@@ -74,10 +74,10 @@ Required:
   --run-id ID
   --output-dir PATH
   --topics PATH
-  --qrels-dir PATH
 
 Optional:
-  --team-id ID                 default: pi-serini
+  --qrels-dir PATH              development diagnostics only
+  --team-id ID                 default: cfda
   --limit-topics N
   --force
   --resume`;

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -7,22 +7,11 @@ import test from "node:test";
 import { runFinalRagPipeline } from "../src/trec-rag-2026/rag-pipeline/runner";
 
 const DOCID = "shard_00001_1";
-const QREL_FILES = [
-  "rag25-climbmix-umbrela-codex-gpt5.5-medium-reasoning-v1.qrels",
-  "rag25-climbmix-umbrela-ministral-3-14b-instruct-2512-v2.qrels",
-  "rag25-climbmix-umbrela-qwen3.5-9b-v2.qrels",
-];
-
-test("final RAG pipeline completes one topic with mocked retrieval and LLM services", async () => {
+test("final RAG pipeline completes without qrels", async () => {
   const root = mkdtempSync(join(tmpdir(), "cfda-rag-smoke-"));
   const topics = join(root, "topics.tsv");
-  const qrels = join(root, "qrels");
   const output = join(root, "output");
   writeFileSync(topics, "1\tExplain the documented fact.\n");
-  mkdirSync(qrels);
-  for (const filename of QREL_FILES) {
-    writeFileSync(join(qrels, filename), `1 0 ${DOCID} 2\n`);
-  }
 
   const originalFetch = globalThis.fetch;
   let llmCalls = 0;
@@ -60,7 +49,6 @@ test("final RAG pipeline completes one topic with mocked retrieval and LLM servi
       teamId: "cfda",
       outputDir: output,
       topicsPath: topics,
-      qrelsDir: qrels,
       pyseriniBaseUrl: "http://mock.pyserini",
       pyseriniIndex: "climbmix-400b",
       pyseriniTokenEnv: "PYSERINI_API_TOKEN",
@@ -95,6 +83,8 @@ test("final RAG pipeline completes one topic with mocked retrieval and LLM servi
     assert.equal(rows.length, 1);
     assert.deepEqual(rows[0].references, [DOCID]);
     assert.deepEqual(rows[0].answer[0].citations, [0]);
+    assert.equal(existsSync(join(output, "metrics.json")), false);
+    assert.equal(existsSync(join(output, "per_topic_metrics.json")), false);
   } finally {
     globalThis.fetch = originalFetch;
   }

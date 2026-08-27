@@ -37,6 +37,22 @@ matching. The final generation path uses the OpenAI API.
 - **Grounded generation:** answer revision and citation ordering operate on
   retrieved evidence before strict output validation.
 
+## Quickstart: offline validation
+
+The public code paths can be checked without API keys, a GPU, model downloads,
+or competition data:
+
+```bash
+cd code
+npm ci
+npm run check
+```
+
+This runs formatting and type checks, unit tests, and mocked end-to-end tests
+for one Retrieval topic and one RAG topic. A successful run ends with all
+TypeScript and Python tests passing. It does not contact ClimbMix, NCHC, or
+OpenAI, and it does not exercise GPU inference.
+
 ## Retrieval pipeline
 
 ![CFDA final Retrieval pipeline](docs/figures/retrieval_pipeline.png)
@@ -179,10 +195,25 @@ codex login status
 On a headless server, use `codex login --device-auth`. API-key authentication
 is also available through `codex login --with-api-key`.
 
+## Official data
+
+This repository does not redistribute the TREC RAG datasets. Download data
+from the [official TREC-RAG data repository](https://github.com/TREC-RAG/trec-rag-data):
+
+- [2026 test data](https://github.com/TREC-RAG/trec-rag-data/tree/main/trec-rag-2026/test-data),
+  including `trec_rag_2026_queries.tsv`;
+- [development data](https://github.com/TREC-RAG/trec-rag-data/tree/main/trec-rag-2026/development-data),
+  including development topics and projected UMBRELA qrels.
+
+The development qrels are model-generated diagnostics for development topics;
+they are not official judgments for the 119 test topics. Record the source
+repository revision or a checksum when using downloaded data. Track schedules
+and judgment availability on the [official TREC RAG website](https://trec-rag.github.io/).
+
 ## Input files
 
-Three inputs are expected. Small fictional examples are included, while the
-competition data itself is not redistributed.
+Topics and a checklist are required. Qrels are optional and are used only for
+development diagnostics. Small fictional examples are included.
 
 ### Topics TSV
 
@@ -194,11 +225,14 @@ topic_id<TAB>narrative
 
 See [`examples/topics.example.tsv`](examples/topics.example.tsv).
 
-### Qrels directory
+### Optional qrels directory
 
 Provide a directory containing one or more `*.qrels` files. Filenames are
 discovered automatically and are used only for local metric reporting; qrels
-are never used to choose queries or evidence.
+are never used to choose queries or evidence. When qrels are supplied, the
+pipeline writes `metrics.json`, `per_topic_metrics.json`, and
+`qrels_metadata.json`; the last file records each filename and SHA-256. Without
+qrels, the normal output is produced and these diagnostic files are omitted.
 
 ### Checklist JSONL
 
@@ -220,6 +254,11 @@ python code/tools/build_checklist.py \
   --topics /path/to/topics.tsv \
   --output /path/to/checklist.jsonl
 ```
+
+Schema-only output examples are available in
+[`examples/retrieval_output.example.tsv`](examples/retrieval_output.example.tsv)
+and [`examples/rag_output.example.jsonl`](examples/rag_output.example.jsonl).
+They contain fictional IDs and are not competition submissions.
 
 ## Start the local neural service
 
@@ -253,9 +292,11 @@ npm run run:retrieval -- \
   --run-id cfda-retrieval \
   --team-id cfda \
   --output-dir out/cfda-retrieval \
-  --topics /path/to/topics.tsv \
-  --qrels-dir /path/to/qrels
+  --topics /path/to/topics.tsv
 ```
+
+Add `--qrels-dir /path/to/development-qrels` only when diagnostic metrics are
+required.
 
 The wrapper loads `code/.env.local`. A topic failure makes the command return
 non-zero after writing `validation.json` and `failed_topics.json`; an incomplete
@@ -300,13 +341,15 @@ Keep the sidecar running, then use another terminal:
 ```bash
 cd code
 TOPICS=/path/to/topics.tsv \
-QRELS_DIR=/path/to/qrels \
 CHECKLIST=/path/to/checklist.jsonl \
 SIDECAR_URLS=http://127.0.0.1:8765 \
 RUN_ID=cfda-w5c \
 TEAM_ID=cfda \
 npm run run:rag
 ```
+
+Set `QRELS_DIR=/path/to/development-qrels` to enable optional diagnostic
+metrics.
 
 The launcher uses four shards by default, resumes completed topics, performs a
 final rescue/assembly pass, applies deterministic finalization, and validates
@@ -328,6 +371,7 @@ Optional environment variables:
 | `SHARDS` | Number of parallel topic shards; default `4` |
 | `SIDECAR_URLS` | Comma-separated sidecar URLs |
 | `PYSERINI_TOKENS` | Comma-separated tokens assigned across shards |
+| `QRELS_DIR` | Optional directory of development qrels |
 | `RUN_ID`, `TEAM_ID` | Run and team identifiers written to generated records |
 | `PYTHON` | Python executable; default `python3` |
 
@@ -344,6 +388,10 @@ The smoke tests execute one Retrieval topic and one bounded-RAG topic against
 deterministic mock services, so they need no credentials or network. GitHub
 Actions runs these checks, a production dependency audit, shell syntax checks,
 and Python compilation on every push and pull request.
+
+CI validates deterministic offline paths only. External services, model
+downloads, GPU execution, and full competition runs are not exercised by
+GitHub Actions.
 
 Validate generated Retrieval and RAG files together:
 
@@ -363,6 +411,11 @@ code/scripts/check_no_secret_leak.sh /path/to/output-directory
 
 ## Reproducibility
 
+This repository reproduces the final pipeline structure, configuration,
+serialization, and validation procedure. It does not guarantee byte-identical
+reproduction of the submitted runs because the frozen checklist, generated
+outputs, external service state, and model responses are not redistributed.
+
 - Node dependencies are locked by `code/package-lock.json`.
 - Sidecar dependencies are fully resolved in `sidecar/requirements.lock`.
 - Platform-sensitive deep-reranker dependencies are directly version-pinned.
@@ -372,6 +425,27 @@ code/scripts/check_no_secret_leak.sh /path/to/output-directory
 
 Official submission files and generated outputs are not redistributed. This
 repository provides the final pipeline implementation and validation tools.
+
+## Evaluation status
+
+Development qrels may be used for diagnostics, but their scores must not be
+reported as official 2026 test results. Official results and judgments were
+still listed as forthcoming on the TREC RAG schedule as of August 27, 2026. No
+unsupported result table is included here.
+
+## Troubleshooting
+
+- **Local neural service is unreachable:** start it from `sidecar/` and check
+  `http://127.0.0.1:8765/health`; keep `SIDECAR_PORT` and `SIDECAR_URLS`
+  consistent.
+- **Authentication fails:** verify `PYSERINI_API_TOKEN`, `NCHC_API_KEY`, and
+  `OPENAI_API_KEY` in the appropriate untracked `.env.local` file.
+- **Model loading or CUDA fails:** confirm available GPU memory, or run the
+  deep reranker with `--device auto` for automatic device selection.
+- **Checklist validation fails:** every topic ID must appear exactly once in
+  both the topics TSV and checklist JSONL.
+- **Final validation fails:** inspect `validation.json` and
+  `failed_topics.json`; incomplete output must not be submitted.
 
 ## License
 

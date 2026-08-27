@@ -64,7 +64,10 @@ import {
   type Qrels,
   type Rankings,
 } from "../../evaluation/retrieval_metrics";
-import { discoverQrelsFiles } from "../../evaluation/qrels_files";
+import {
+  describeQrelsFiles,
+  discoverQrelsFiles,
+} from "../../evaluation/qrels_files";
 import {
   rerankWithCrossEncoder,
   type RerankCandidate,
@@ -88,7 +91,7 @@ export type IterativeOptions = {
   teamId: string;
   outputDir: string;
   topicsPath: string;
-  qrelsDir: string;
+  qrelsDir?: string;
   pyseriniBaseUrl: string;
   pyseriniIndex: string;
   pyseriniTokenEnv: string;
@@ -587,13 +590,7 @@ export async function runFinalRetrievalPipeline(o: IterativeOptions) {
     .filter((s: any) => s?.status === "failed")
     .map((s: any) => ({ topic_id: s.topic_id, error: s.error }));
   writeJson(join(out, "failed_topics.json"), failed);
-  const metrics = evalAll(
-    qrelsPaths(resolve(o.qrelsDir)),
-    topics.map((t) => t.qid),
-    rankings,
-  );
-  writeJson(join(out, "metrics.json"), metrics.summary);
-  writeJson(join(out, "per_topic_metrics.json"), metrics.perTopic);
+  writeOptionalMetrics(out, o.qrelsDir, topics, rankings);
   const validation = {
     ok: failed.length === 0 && rags.length === topics.length,
     output_count: rags.length,
@@ -3004,6 +3001,33 @@ function assemble(out: string, topics: Topic[]): Rankings {
 }
 function qrelsPaths(dir: string) {
   return discoverQrelsFiles(dir);
+}
+function writeOptionalMetrics(
+  out: string,
+  qrelsDir: string | undefined,
+  topics: Topic[],
+  rankings: Rankings,
+) {
+  const generated = [
+    "metrics.json",
+    "per_topic_metrics.json",
+    "qrels_metadata.json",
+  ];
+  for (const filename of generated)
+    rmSync(join(out, filename), { force: true });
+  if (!qrelsDir) return;
+  const paths = qrelsPaths(resolve(qrelsDir));
+  const metrics = evalAll(
+    paths,
+    topics.map((topic) => topic.qid),
+    rankings,
+  );
+  writeJson(join(out, "metrics.json"), metrics.summary);
+  writeJson(join(out, "per_topic_metrics.json"), metrics.perTopic);
+  writeJson(join(out, "qrels_metadata.json"), {
+    purpose: "development diagnostics only",
+    files: describeQrelsFiles(paths),
+  });
 }
 function parseQrels(path: string, qids: string[]): Qrels {
   const w = new Set(qids),

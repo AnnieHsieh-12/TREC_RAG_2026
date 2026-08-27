@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -93,6 +99,79 @@ test("final Retrieval orchestration completes one mocked topic", async () => {
       readFileSync(join(output, "metrics.json"), "utf8"),
     );
     assert.equal(metrics.qrels[0].qrels_filename, "fixture.qrels");
+    const provenance = JSON.parse(
+      readFileSync(join(output, "qrels_metadata.json"), "utf8"),
+    );
+    assert.equal(provenance.files[0].filename, "fixture.qrels");
+    assert.match(provenance.files[0].sha256, /^[a-f0-9]{64}$/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Retrieval runs without qrels and omits diagnostic metrics", async () => {
+  const root = mkdtempSync(join(tmpdir(), "cfda-retrieval-no-qrels-"));
+  const topics = join(root, "topics.tsv");
+  const output = join(root, "output");
+  writeFileSync(topics, "1\tExplain the verified retrieval fact.\n");
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/search?"))
+      return jsonResponse({ candidates: [{ docid: DOCID, score: 10 }] });
+    if (url.includes("/doc/"))
+      return jsonResponse({ doc: { text: "The verified fact." } });
+    if (url === "http://mock.nchc/chat/completions")
+      return jsonResponse({
+        choices: [{ message: { content: '{"enough":true,"queries":[]}' } }],
+      });
+    throw new Error(`Unexpected request: ${url}`);
+  };
+
+  try {
+    await runFinalRetrievalPipeline({
+      runId: "no-qrels",
+      teamId: "cfda",
+      outputDir: output,
+      topicsPath: topics,
+      pyseriniBaseUrl: "http://mock.pyserini",
+      pyseriniIndex: "climbmix-400b",
+      pyseriniTokenEnv: "PYSERINI_API_TOKEN",
+      initialDocs: 1,
+      docsPerIteration: 1,
+      maxDocumentsRead: 1,
+      maxIterations: 1,
+      documentReadLimit: 20,
+      llm: {
+        provider: "nchc_llm",
+        model: "mock-model",
+        apiKeyEnv: "NCHC_API_KEY",
+        baseUrl: "http://mock.nchc",
+      },
+      env: {
+        NCHC_API_KEY: "test-only",
+        PYSERINI_API_TOKEN: "test-only",
+        R_ONLY: "1",
+      },
+      force: true,
+      policy: {
+        ...FINAL_POLICY,
+        q2d_enabled: false,
+        rerank_depth: 0,
+        fusion_dense: false,
+        facet_queries: false,
+        per_aspect_generation: false,
+        comprehensive_answer: false,
+        reflection: false,
+        citation_verify: false,
+        llm_revise: false,
+        reattribute: false,
+      },
+    });
+    assert.equal(existsSync(join(output, "metrics.json")), false);
+    assert.equal(existsSync(join(output, "per_topic_metrics.json")), false);
+    assert.equal(existsSync(join(output, "qrels_metadata.json")), false);
   } finally {
     globalThis.fetch = originalFetch;
   }

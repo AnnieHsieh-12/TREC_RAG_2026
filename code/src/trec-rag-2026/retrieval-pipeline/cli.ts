@@ -18,10 +18,10 @@ export function parse(
   }
   return {
     runId: req(r["run-id"], "--run-id"),
-    teamId: str(r["team-id"]) || "pi-serini",
+    teamId: str(r["team-id"]) || "cfda",
     outputDir: req(r["output-dir"], "--output-dir"),
     topicsPath: req(r.topics, "--topics"),
-    qrelsDir: req(r["qrels-dir"], "--qrels-dir"),
+    qrelsDir: str(r["qrels-dir"]) || undefined,
     pyseriniBaseUrl:
       str(r["pyserini-base-url"]) ||
       env.PYSERINI_BASE_URL ||

@@ -1,5 +1,6 @@
-import { readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { readFileSync, readdirSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 
 /** Return every qrels file in a directory, in deterministic filename order. */
 export function discoverQrelsFiles(directory: string): string[] {
@@ -13,4 +14,12 @@ export function discoverQrelsFiles(directory: string): string[] {
     throw new Error(`No .qrels files found in ${root}`);
   }
   return files;
+}
+
+/** Record which optional diagnostic judgments were used without copying them. */
+export function describeQrelsFiles(paths: string[]) {
+  return paths.map((path) => ({
+    filename: basename(path),
+    sha256: createHash("sha256").update(readFileSync(path)).digest("hex"),
+  }));
 }
