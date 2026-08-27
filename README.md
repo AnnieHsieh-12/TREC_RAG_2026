@@ -19,7 +19,7 @@ The repository has one TypeScript package and one Python sidecar:
 - `code/src/llm/`, `evaluation/`, and `rag-core/` are shared by
   both controllers; there is no duplicated RAG package.
 - `sidecar/` provides local reranking, passage selection, sentence evidence,
-  and the Codex CLI bridge used by the Retrieval policy.
+  and an optional Codex CLI bridge.
 - `code/tools/` contains checklist generation, deep-tail reranking,
   serialization, and official-format validation.
 
@@ -30,8 +30,7 @@ The repository has one TypeScript package and one Python sidecar:
 - A CUDA-capable GPU is recommended for neural reranking
 - Access to the ClimbMix/Pyserini service
 - NCHC credentials for the base Retrieval model
-- An OpenAI API key for the bounded RAG launcher
-- Codex CLI authentication for the Retrieval policy's query and writer roles
+- An OpenAI API key for the final Retrieval writer/query roles and bounded RAG
 
 Install the locked TypeScript dependencies:
 
@@ -50,11 +49,11 @@ pip install -r code/requirements-deepce.txt
 pip install -r sidecar/requirements.lock
 ```
 
-### Codex CLI setup
+### Optional Codex CLI backend
 
-The Retrieval policy sends query-generation and writer requests through the
-local sidecar to `codex exec`. Install and authenticate the official CLI on
-the machine running the sidecar:
+The official runs used the OpenAI API. The local sidecar also supports Codex
+CLI as an alternative backend for non-official reruns. To use it, install and
+authenticate the CLI on the machine running the sidecar:
 
 ```bash
 npm install --global @openai/codex
@@ -79,7 +78,7 @@ cp sidecar/.env.local.example sidecar/.env.local
 Set the following values:
 
 - `code/.env.local`: `NCHC_API_KEY`, `PYSERINI_API_TOKEN`, and
-  `OPENAI_API_KEY` when running bounded RAG.
+  `OPENAI_API_KEY`.
 - `sidecar/.env.local`: `PYSERINI_API_TOKEN` and `NCHC_API_KEY`.
 
 The launch scripts load these files automatically. `SIDECAR_URL` defaults to
@@ -94,7 +93,9 @@ Competition data is not redistributed. Provide:
   reporter (filenames are discovered automatically);
 - checklist JSONL with one `{"qid":"...","items":[...]}` object per line.
 
-Small fictional examples are available in `examples/`.
+Small fictional examples are available in `examples/`. The frozen official
+119-topic checklist is not redistributed; generating it again preserves the
+documented procedure but may not reproduce identical model output.
 
 Generate a checklist from topics with the NCHC key in
 `sidecar/.env.local`:
@@ -107,7 +108,8 @@ python code/tools/build_checklist.py \
 
 ## Start the sidecar
 
-Run this in a separate terminal before either final pipeline:
+Run this in a separate terminal before the final RAG pipeline. It is also
+needed when explicitly selecting the optional Codex backend for Retrieval:
 
 ```bash
 source .venv/bin/activate
@@ -123,9 +125,9 @@ reranking model into the ignored local cache if the model is not already there.
 ```bash
 cd code
 npm run run:retrieval -- \
-  --run-id cfda-final-retrieval \
-  --team-id cfda \
-  --output-dir out/final-retrieval \
+  --run-id VFs-official119 \
+  --team-id pi-serini \
+  --output-dir out/VFs-official119 \
   --topics /path/to/topics.tsv \
   --qrels-dir /path/to/qrels
 ```
@@ -137,11 +139,13 @@ Run deep-tail reranking and serialize the final Retrieval files:
 
 ```bash
 source ../.venv/bin/activate
-python tools/deep_ce_rerank.py out/final-retrieval \
+python tools/deep_ce_rerank.py out/VFs-official119 \
+  --head 100 \
+  --depth 3000 \
   --variant 'RRF 1:1' \
   --device auto \
-  --out out/final-retrieval/deepce
-RUN_DIR="$PWD/out/final-retrieval" bash scripts/run_final_retrieval.sh
+  --out out/VFs-official119/deepce
+RUN_DIR="$PWD/out/VFs-official119" bash scripts/run_final_retrieval.sh
 ```
 
 ## Run final bounded RAG
@@ -156,9 +160,11 @@ npm run run:rag
 ```
 
 Optional environment variables are `OUT`, `RUN_ID`, `TEAM_ID`, `SHARDS`,
-`PYSERINI_TOKENS`, and comma-separated `SIDECAR_URLS`. The launcher loads
-`code/.env.local`, uses the OpenAI API for generation, and uses the sidecar
-only for local reranking, passage selection, and evidence verification.
+`SUBMISSION_OUT`, `PYSERINI_TOKENS`, and comma-separated `SIDECAR_URLS`. The
+launcher loads `code/.env.local`, uses the OpenAI API for generation, and uses
+the sidecar only for local reranking, passage selection, and evidence
+verification. It then replays the documented W5c heading repair and finalizes
+the registered submission identity as team `2026 cfda rag`, run `cfda-w5c`.
 
 ## Validation
 
@@ -185,9 +191,19 @@ code/scripts/validate_submission.sh \
 
 Node dependencies are locked by `package-lock.json`; sidecar dependencies are
 fully resolved in `sidecar/requirements.lock`, while the platform-sensitive
-deep-reranker dependencies are directly version-pinned. Model weights are downloaded from their upstream registries
-and competition services require separate authorization. Generated runs,
-official inputs, model caches, and intermediate outputs remain untracked.
+deep-reranker dependencies are directly version-pinned. Model weights are
+downloaded from their upstream registries and competition services require
+separate authorization. Generated runs, official inputs, model caches, and
+intermediate outputs remain untracked.
+
+The frozen official submissions are not stored in this repository. Their
+SHA-256 checksums are:
+
+| Run | SHA-256 |
+| --- | --- |
+| `cfda-vfs-unc` | `376fb9ef131d9317571933766fc98fdace7223bab6051860b1f332e7d4e56cae` |
+| `cfda-vfs-deep` | `4b13a3291c82ae49e9b5212f7f1c1261ce4cee6ee17e3d6a00716313fa795351` |
+| `cfda-w5c` | `87dbe373dbb8b95e5a43f7041c998ec7b26cdc34adf9e455f14477ed421d0ec8` |
 
 ## License
 

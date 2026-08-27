@@ -32,7 +32,7 @@ from src.common import load_token
 from src.passages import select_passages
 from src.retriever import fetch_doc, RetrieverError
 
-PORT = 8765
+PORT = int(os.environ.get("SIDECAR_PORT", "8765"))
 DOCTEXT_CACHE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                              "cache", "doctext")
 RAW_CACHE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

@@ -32,9 +32,11 @@ done
 
 SHARDS="${SHARDS:-4}"
 OUT="${OUT:-$CODE_ROOT/out/final-rag}"
-RUN_ID="${RUN_ID:-cfda-final-rag}"
-TEAM_ID="${TEAM_ID:-cfda}"
+RUN_ID="${RUN_ID:-W5c-official119}"
+TEAM_ID="${TEAM_ID:-pi-serini}"
 SIDECAR_URLS="${SIDECAR_URLS:-http://127.0.0.1:8765}"
+SUBMISSION_OUT="${SUBMISSION_OUT:-$CODE_ROOT/out/submissions/cfda-w5c}"
+PYTHON="${PYTHON:-python3}"
 
 mkdir -p "$OUT/.shards"
 
@@ -100,4 +102,10 @@ done
 # Complete/resume all topics and assemble one output file. The rescue pass
 # disables the operational quality gate so every input topic is represented.
 ANSWER_QUALITY_GATE=0 run_entry "$TOPICS" "$OUT/.shards/assemble.log" 0
-echo "Final RAG output: $OUT/rag_output_trec_rag_2026.jsonl"
+RAW_RAG="$OUT/rag_output_trec_rag_2026.jsonl"
+REPAIRED_RAG="$OUT/.w5c-heading-repaired.jsonl"
+"$PYTHON" tools/replay_uncited_heading_repair.py \
+  --input "$RAW_RAG" --output "$REPAIRED_RAG"
+"$PYTHON" tools/finalize_submissions.py \
+  --rag "$REPAIRED_RAG" --rag-tag cfda-w5c --outdir "$SUBMISSION_OUT"
+echo "Final RAG submission: $SUBMISSION_OUT/rag_output_trec_rag_2026.jsonl"

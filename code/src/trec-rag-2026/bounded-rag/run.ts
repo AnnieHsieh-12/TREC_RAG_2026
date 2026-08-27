@@ -6,7 +6,8 @@ Required environment variables:
   TOPICS, QRELS_DIR, CHECKLIST, OPENAI_API_KEY
 
 Optional environment variables:
-  OUT, RUN_ID, TEAM_ID, SHARDS, SIDECAR_URLS, PYSERINI_TOKENS`;
+  OUT, RUN_ID, TEAM_ID, SHARDS, SIDECAR_URLS, PYSERINI_TOKENS,
+  SUBMISSION_OUT, PYTHON`;
 export function parse(
   argv: string[],
   env: NodeJS.ProcessEnv = process.env,

@@ -7,7 +7,7 @@
     "run_desc": "validator contract fixture",
     "type": "automatic",
     "title": "",
-    "prompt": "cfda_rag_final",
+    "prompt": "agentic_rag_baseline_v1",
     "generator": "fixture-model"
   },
   "references": [

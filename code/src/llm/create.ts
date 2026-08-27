@@ -52,9 +52,21 @@ export async function generateJsonWithRetry<T>(
     ) {
       globalAttempt += 1;
       const started = Date.now();
+      // Provider retries must not be byte-identical: the official runtime
+      // varied retries to avoid replaying a cached empty/error response.
+      const requestMessages =
+        requestAttempt === 1
+          ? messages
+          : [
+              ...messages,
+              {
+                role: "user" as const,
+                content: `[retry ${requestAttempt}: previous attempt failed; return the JSON now]`,
+              },
+            ];
       try {
         result = await options.client.generate({
-          messages,
+          messages: requestMessages,
           temperature: options.temperature,
           maxTokens: options.maxTokens,
           responseFormat: "json_object",

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Extend cross-encoder reranking below a protected ranking head.
 
-    python tools/deep_ce_rerank.py out/final-retrieval \
-        --depth 5000 --head 100 --out out/final-retrieval/deepce
+    python tools/deep_ce_rerank.py out/VFs-official119 \
+        --depth 3000 --head 100 --out out/VFs-official119/deepce
 
 The first ``--head`` documents retain their input order. The remaining
 documents are cross-encoder scored and RRF-fused with their pool order. Output

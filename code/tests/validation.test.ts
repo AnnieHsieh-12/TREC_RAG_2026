@@ -19,7 +19,7 @@ const args = {
     runId: "test-run",
     teamId: "pi-serini",
     mode: "automatic" as const,
-    promptVersion: "cfda_rag_final",
+    promptVersion: "agentic_rag_baseline_v1",
     runDesc: "test fixture",
   },
   topic: { qid: "1", title: "", narrative: "Example narrative" },

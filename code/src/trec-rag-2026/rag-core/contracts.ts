@@ -1,4 +1,4 @@
-export const RAG_PROMPT_PROFILE = "cfda_rag_final";
+export const RAG_PROMPT_PROFILE = "agentic_rag_baseline_v1";
 export const CLIMBMIX_DOCID_RE = /^shard_\d+_\d+$/;
 
 export type RagRunMode = "automatic";

@@ -57,7 +57,7 @@ export type AnswerGenerationPromptInput = {
 export function buildJudgePrompt(input: JudgePromptInput): string {
   return [
     `Prompt version: ${RAG_PROMPT_PROFILE}`,
-    "You are an evidence sufficiency judge for a TREC RAG pipeline.",
+    "You are an evidence sufficiency judge for a TREC RAG baseline.",
     "Use only the provided topic and evidence documents. Do not use outside knowledge.",
     "Decide whether the current evidence is sufficient to answer all important aspects of the narrative.",
     "Do not write the final answer.",
