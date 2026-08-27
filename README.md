@@ -9,14 +9,16 @@ technical report are intentionally excluded.
 
 ## Architecture
 
-The repository has one TypeScript package and one Python sidecar:
+The repository has one TypeScript package and one Python sidecar. The source
+directories are named by their public role rather than by historical experiment
+labels:
 
 - `code/config/final_pipeline.ts` defines the flattened final Retrieval policy.
-- `code/src/trec-rag-2026/agentic-rag/` implements the final Retrieval and
-  evidence-grounded generation controller.
-- `code/src/trec-rag-2026/bounded-rag/` implements the bounded 12/10/60/6 RAG
+- `code/src/trec-rag-2026/retrieval-pipeline/` implements the final Retrieval
+  and evidence-acquisition controller.
+- `code/src/trec-rag-2026/rag-pipeline/` implements the bounded 12/10/60/6 RAG
   controller, including per-round top-300 reranking and verify/revise.
-- `code/src/llm/`, `evaluation/`, and `rag-core/` are shared by
+- `code/src/llm/`, `evaluation/`, and `shared-rag/` are shared by
   both controllers; there is no duplicated RAG package.
 - `sidecar/` provides local reranking, passage selection, sentence evidence,
   and an optional Codex CLI bridge.
@@ -145,7 +147,7 @@ python tools/deep_ce_rerank.py out/VFs-official119 \
   --variant 'RRF 1:1' \
   --device auto \
   --out out/VFs-official119/deepce
-RUN_DIR="$PWD/out/VFs-official119" bash scripts/run_final_retrieval.sh
+RUN_DIR="$PWD/out/VFs-official119" bash scripts/build_retrieval_submissions.sh
 ```
 
 ## Run final bounded RAG
@@ -183,7 +185,7 @@ checks, and Python compilation on every push and pull request.
 Validate generated Retrieval and RAG files together:
 
 ```bash
-code/scripts/validate_submission.sh \
+code/scripts/validate_outputs.sh \
   /path/to/retrieval.tsv /path/to/rag.jsonl /path/to/topics.tsv
 ```
 

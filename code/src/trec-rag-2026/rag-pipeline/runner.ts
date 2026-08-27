@@ -29,15 +29,15 @@ import {
   type RagRunConfig,
   type AgenticRagOutputObject,
   type TopicIdentity,
-} from "../rag-core/contracts";
+} from "../shared-rag/contracts";
 import {
   normalizeRagOutputObjectReferences,
   validateRagOutputObjectStrict,
-} from "../rag-core/validation";
+} from "../shared-rag/validation";
 import {
   buildExtractiveFallbackAnswerDraft,
   type ReadDocument,
-} from "../rag-core/fallback";
+} from "../shared-rag/fallback";
 import {
   evaluateRankings,
   type Qrels,
@@ -96,7 +96,7 @@ const POLICY = {
 } as const;
 const CUTS = [10, 20, 50, 100, 500, 1000],
   NDCG = [10, 20, 100, 1000];
-export async function runIterativeAgenticRag(o: IterativeOptions) {
+export async function runFinalRagPipeline(o: IterativeOptions) {
   const env = o.env ?? process.env,
     out = resolve(o.outputDir);
   if (o.force) rmSync(out, { recursive: true, force: true });

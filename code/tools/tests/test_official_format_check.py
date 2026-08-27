@@ -81,8 +81,8 @@ class OfficialFormatCheckTests(unittest.TestCase):
 
     def test_runtime_uses_one_canonical_validator(self):
         code_root = Path(__file__).resolve().parents[2]
-        canonical = code_root / "src/trec-rag-2026/rag-core/validation.ts"
-        duplicate = code_root / "rag/src/trec-rag-2026/rag-core/validation.ts"
+        canonical = code_root / "src/trec-rag-2026/shared-rag/validation.ts"
+        duplicate = code_root / "rag/src/trec-rag-2026/shared-rag/validation.ts"
         self.assertTrue(canonical.is_file())
         self.assertFalse(duplicate.exists())
 
@@ -112,7 +112,7 @@ class OfficialFormatCheckTests(unittest.TestCase):
             completed = subprocess.run(
                 [
                     "bash",
-                    str(code_root / "scripts/validate_submission.sh"),
+                    str(code_root / "scripts/validate_outputs.sh"),
                     str(retrieval),
                     str(rag),
                     str(topics),

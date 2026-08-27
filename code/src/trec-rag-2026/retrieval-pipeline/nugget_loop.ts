@@ -9,7 +9,7 @@
 // The predicted list is built only from the narrative and retrieved evidence.
 
 import type { LlmClient } from "../../llm/types";
-import type { TopicIdentity } from "../rag-core/contracts";
+import type { TopicIdentity } from "../shared-rag/contracts";
 
 export type NuggetAssignment = "support" | "partial_support" | "not_support";
 

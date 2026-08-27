@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { FINAL_POLICY } from "../config/final_pipeline";
-import { runIterativeAgenticRag } from "../src/trec-rag-2026/agentic-rag/iterative_runner";
+import { runFinalRetrievalPipeline } from "../src/trec-rag-2026/retrieval-pipeline/runner";
 
 const DOCID = "shard_00999_42";
 
@@ -38,7 +38,7 @@ test("final Retrieval orchestration completes one mocked topic", async () => {
   };
 
   try {
-    const result = await runIterativeAgenticRag({
+    const result = await runFinalRetrievalPipeline({
       runId: "retrieval-smoke",
       teamId: "cfda",
       outputDir: output,

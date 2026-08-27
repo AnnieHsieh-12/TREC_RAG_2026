@@ -6,7 +6,7 @@ import {
   validateOfficialRagOutputObject,
   validateRagOutputObject,
   validateRagOutputObjectStrict,
-} from "../src/trec-rag-2026/rag-core/validation";
+} from "../src/trec-rag-2026/shared-rag/validation";
 
 const fixture = JSON.parse(
   readFileSync(

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { runIterativeAgenticRag } from "../src/trec-rag-2026/bounded-rag/runner";
+import { runFinalRagPipeline } from "../src/trec-rag-2026/rag-pipeline/runner";
 
 const DOCID = "shard_00001_1";
 const QREL_FILES = [
@@ -13,7 +13,7 @@ const QREL_FILES = [
   "rag25-climbmix-umbrela-qwen3.5-9b-v2.qrels",
 ];
 
-test("bounded RAG completes one topic with mocked retrieval and LLM services", async () => {
+test("final RAG pipeline completes one topic with mocked retrieval and LLM services", async () => {
   const root = mkdtempSync(join(tmpdir(), "cfda-rag-smoke-"));
   const topics = join(root, "topics.tsv");
   const qrels = join(root, "qrels");
@@ -55,7 +55,7 @@ test("bounded RAG completes one topic with mocked retrieval and LLM services", a
   };
 
   try {
-    const result = await runIterativeAgenticRag({
+    const result = await runFinalRagPipeline({
       runId: "offline-smoke",
       teamId: "cfda",
       outputDir: output,

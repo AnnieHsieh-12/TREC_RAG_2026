@@ -1,5 +1,5 @@
 import { pathToFileURL } from "node:url";
-import { runIterativeAgenticRag, type IterativeOptions } from "./runner";
+import { runFinalRagPipeline, type IterativeOptions } from "./runner";
 const USAGE = `Usage: npm run run:rag
 
 Required environment variables:
@@ -121,7 +121,7 @@ async function main() {
   }
   console.log(
     JSON.stringify(
-      await runIterativeAgenticRag(parse(process.argv.slice(2))),
+      await runFinalRagPipeline(parse(process.argv.slice(2))),
       null,
       2,
     ),

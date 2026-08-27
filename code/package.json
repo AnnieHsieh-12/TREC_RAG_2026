@@ -13,8 +13,8 @@
     "test:smoke": "tsx --test tests/*smoke.test.ts",
     "test:python": "python3 -m unittest discover -s tools/tests -p 'test_*.py'",
     "check": "npm run format:check && npm run typecheck && npm run test:ts && npm run test:python",
-    "run:retrieval": "bash scripts/run_retrieval_policy.sh",
-    "run:rag": "bash scripts/run_final_rag.sh"
+    "run:retrieval": "bash scripts/run_retrieval.sh",
+    "run:rag": "bash scripts/run_rag.sh"
   },
   "dependencies": {
     "@huggingface/transformers": "3.8.1",

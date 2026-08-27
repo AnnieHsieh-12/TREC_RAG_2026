@@ -33,7 +33,7 @@ import {
   buildIntegrationPrompt,
   buildReflectionPrompt,
   buildGroundedRevisionPrompt,
-} from "../rag-core/prompts";
+} from "../shared-rag/prompts";
 import {
   ExposureLedger,
   enforceAnswerPlan,
@@ -49,16 +49,16 @@ import {
   type RagRunConfig,
   type AgenticRagOutputObject,
   type TopicIdentity,
-} from "../rag-core/contracts";
+} from "../shared-rag/contracts";
 import {
   normalizeRagOutputObjectReferences,
   validateRagOutputObjectStrict,
-} from "../rag-core/validation";
+} from "../shared-rag/validation";
 import {
   buildExtractiveFallbackAnswerDraft,
   type ReadDocument,
-} from "../rag-core/fallback";
-import { AgenticRagValidationError } from "../rag-core/validation";
+} from "../shared-rag/fallback";
+import { AgenticRagValidationError } from "../shared-rag/validation";
 import {
   evaluateRankings,
   type Qrels,
@@ -391,7 +391,7 @@ async function rerankTopOfRanking(
     score: e.score,
   }));
 }
-export async function runIterativeAgenticRag(o: IterativeOptions) {
+export async function runFinalRetrievalPipeline(o: IterativeOptions) {
   POLICY = { ...BASE_POLICY, ...(o.policy ?? {}) };
   if (
     POLICY.enumerative_style &&
@@ -609,7 +609,7 @@ export async function runIterativeAgenticRag(o: IterativeOptions) {
   writeJson(join(out, "run-summary.internal.json"), summary);
   writeFileSync(
     join(out, "provenance.md"),
-    `# Iterative agentic RAG\n\nNo RAGDoll. No qrels query selection. No source_run_dir.\n`,
+    `# Final Retrieval pipeline\n\nNo RAGDoll. No qrels query selection. No source_run_dir.\n`,
   );
   return { outputDir: out, validation };
 }

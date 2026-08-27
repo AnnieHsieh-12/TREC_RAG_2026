@@ -1,8 +1,5 @@
 import { pathToFileURL } from "node:url";
-import {
-  runIterativeAgenticRag,
-  type IterativeOptions,
-} from "./iterative_runner";
+import { runFinalRetrievalPipeline, type IterativeOptions } from "./runner";
 export function parse(
   argv: string[],
   env: NodeJS.ProcessEnv = process.env,
@@ -113,7 +110,7 @@ function req(v: unknown, n: string) {
 async function main() {
   console.log(
     JSON.stringify(
-      await runIterativeAgenticRag(parse(process.argv.slice(2))),
+      await runFinalRetrievalPipeline(parse(process.argv.slice(2))),
       null,
       2,
     ),

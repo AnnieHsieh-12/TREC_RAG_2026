@@ -1,4 +1,7 @@
-import { RAG_PROMPT_PROFILE, type TopicIdentity } from "../rag-core/contracts";
+import {
+  RAG_PROMPT_PROFILE,
+  type TopicIdentity,
+} from "../shared-rag/contracts";
 
 export type EvidenceDocumentForPrompt = {
   docid: string;

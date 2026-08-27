@@ -1,12 +1,12 @@
 import { pathToFileURL } from "node:url";
 import {
-  runIterativeAgenticRag,
+  runFinalRetrievalPipeline,
   type PolicyOverride,
-} from "../src/trec-rag-2026/agentic-rag/iterative_runner";
+} from "../src/trec-rag-2026/retrieval-pipeline/runner";
 import {
   applyFinalModels,
   parse,
-} from "../src/trec-rag-2026/agentic-rag/run_iterative_entry";
+} from "../src/trec-rag-2026/retrieval-pipeline/cli";
 
 /**
  * Final competition policy, flattened from the development-time experiment
@@ -88,7 +88,7 @@ async function main() {
     return;
   }
   const options = applyFinalModels(parse(process.argv.slice(2)), FINAL_MODELS);
-  const result = await runIterativeAgenticRag({
+  const result = await runFinalRetrievalPipeline({
     ...options,
     policy: FINAL_POLICY,
   });
