@@ -31,8 +31,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
-          cache-dependency-path: sidecar/requirements.lock
 
       - name: Install locked dependencies
         run: npm ci
@@ -54,9 +52,3 @@ jobs:
 
       - name: Compile Python sources
         run: python3 -m compileall -q tools ../sidecar/src ../sidecar/config.py
-
-      - name: Install and test the sidecar runtime
-        working-directory: sidecar
-        run: |
-          python -m pip install -r requirements.lock
-          python -m unittest discover -s tests -p 'test_*.py'

@@ -169,11 +169,10 @@ cd code
 npm run check
 ```
 
-The smoke tests execute one complete bounded-RAG topic and one final-Retrieval
-topic against deterministic mock services; they require no credentials or
-network. GitHub Actions runs the same checks, a production dependency audit,
-shell syntax checks, Python compilation, a locked sidecar installation, and
-sidecar runtime tests on every push and pull request.
+The smoke tests execute one bounded-RAG topic and one Retrieval topic against
+deterministic mock services; they require no credentials or network. GitHub
+Actions runs the same checks, a production dependency audit, shell syntax
+checks, and Python compilation on every push and pull request.
 
 Validate generated Retrieval and RAG files together:
 
