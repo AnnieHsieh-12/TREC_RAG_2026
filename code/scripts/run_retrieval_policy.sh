@@ -11,4 +11,4 @@ if [[ -f .env.local ]]; then
   set +a
 fi
 
-exec npx tsx config/final_pipeline.ts "$@"
+exec ./node_modules/.bin/tsx config/final_pipeline.ts "$@"

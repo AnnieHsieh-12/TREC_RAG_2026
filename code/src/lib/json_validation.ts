@@ -64,7 +64,9 @@ export function compileJsonValidator<TSchemaType extends TSchema>(
     if (validator.Check(value)) {
       return value as Static<TSchemaType>;
     }
-    throw new Error(`Invalid ${label}: ${formatJsonValidationError(errors(value))}`);
+    throw new Error(
+      `Invalid ${label}: ${formatJsonValidationError(errors(value))}`,
+    );
   };
 
   return {

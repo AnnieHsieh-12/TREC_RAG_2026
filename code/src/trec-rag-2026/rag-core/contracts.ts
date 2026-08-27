@@ -1,7 +1,7 @@
-export const AGENTIC_RAG_BASELINE_PROMPT_VERSION = "agentic_rag_baseline_v1";
+export const RAG_PROMPT_PROFILE = "cfda_rag_final";
 export const CLIMBMIX_DOCID_RE = /^shard_\d+_\d+$/;
 
-export type AgenticRagBaselineMode = "dev";
+export type RagRunMode = "automatic";
 
 export type AgenticRagOutputMetadata = {
   team_id: string;
@@ -16,7 +16,7 @@ export type AgenticRagOutputMetadata = {
   // v0.6.0: participant-defined metadata fields are allowed.
   generator?: string;
   retrieval_depth?: number;
-};
+} & Record<string, unknown>;
 
 /** Organizer-facing input may cite by zero-based index or exact ClimbMix docid. */
 export type RawRagCitation = number | string;
@@ -33,11 +33,13 @@ export type AgenticRagOutputObject = {
   answer: AgenticRagAnswerSentence[];
 };
 
-export type AgenticRagBaselineConfig = {
+export type RagRunConfig = {
   runId: string;
   teamId: string;
-  mode: AgenticRagBaselineMode;
+  mode: RagRunMode;
   promptVersion: string;
+  runDesc: string;
+  layersDesc?: string;
 };
 
 export type TopicIdentity = {

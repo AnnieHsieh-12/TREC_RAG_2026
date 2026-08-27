@@ -1,6 +1,16 @@
 import type { OpenAiLlmConfig } from "./config";
-import { errorMessageWithRedactedSecrets, LlmConfigError, LlmProviderError } from "./errors";
-import type { LlmClient, LlmGenerateOptions, LlmGenerateResult, LlmMessage, LlmUsage } from "./types";
+import {
+  errorMessageWithRedactedSecrets,
+  LlmConfigError,
+  LlmProviderError,
+} from "./errors";
+import type {
+  LlmClient,
+  LlmGenerateOptions,
+  LlmGenerateResult,
+  LlmMessage,
+  LlmUsage,
+} from "./types";
 
 export const OPENAI_CHAT_COMPLETIONS_PATH = "/chat/completions";
 
@@ -29,7 +39,8 @@ export class OpenAiLlmClient implements LlmClient {
 
   async generate(options: LlmGenerateOptions): Promise<LlmGenerateResult> {
     const apiKey = this.env[this.apiKeyEnv]?.trim();
-    if (!apiKey) throw new LlmConfigError(`${this.apiKeyEnv} must be set for openai_llm.`);
+    if (!apiKey)
+      throw new LlmConfigError(`${this.apiKeyEnv} must be set for openai_llm.`);
 
     const started = Date.now();
     const url = `${this.baseUrl}${OPENAI_CHAT_COMPLETIONS_PATH}`;
@@ -43,7 +54,10 @@ export class OpenAiLlmClient implements LlmClient {
         },
         body: JSON.stringify({
           model: this.model,
-          messages: options.messages.map((m: LlmMessage) => ({ role: m.role, content: m.content })),
+          messages: options.messages.map((m: LlmMessage) => ({
+            role: m.role,
+            content: m.content,
+          })),
           max_completion_tokens: options.maxTokens,
           reasoning_effort: "none",
         }),
@@ -72,7 +86,10 @@ export class OpenAiLlmClient implements LlmClient {
     }
 
     const text = extractAssistantText(parsed);
-    if (text.trim().length === 0) throw new LlmProviderError("openai_llm returned an empty assistant message.");
+    if (text.trim().length === 0)
+      throw new LlmProviderError(
+        "openai_llm returned an empty assistant message.",
+      );
 
     return {
       provider: this.provider,
@@ -80,7 +97,9 @@ export class OpenAiLlmClient implements LlmClient {
       text,
       latencyMs: Date.now() - started,
       ...(typeof parsed.id === "string" ? { requestId: parsed.id } : {}),
-      ...(normalizeUsage(parsed.usage) ? { usage: normalizeUsage(parsed.usage) } : {}),
+      ...(normalizeUsage(parsed.usage)
+        ? { usage: normalizeUsage(parsed.usage) }
+        : {}),
     };
   }
 }
@@ -90,7 +109,8 @@ function extractAssistantText(value: OpenAiChatCompletionsResponse): string {
   const first = value.choices[0];
   if (!isRecord(first)) return "";
   const message = first.message;
-  if (isRecord(message) && typeof message.content === "string") return message.content;
+  if (isRecord(message) && typeof message.content === "string")
+    return message.content;
   if (typeof first.text === "string") return first.text;
   return "";
 }
@@ -98,9 +118,12 @@ function extractAssistantText(value: OpenAiChatCompletionsResponse): string {
 function normalizeUsage(value: unknown): LlmUsage | undefined {
   if (!isRecord(value)) return undefined;
   const usage: LlmUsage = {};
-  if (typeof value.prompt_tokens === "number") usage.inputTokens = value.prompt_tokens;
-  if (typeof value.completion_tokens === "number") usage.outputTokens = value.completion_tokens;
-  if (typeof value.total_tokens === "number") usage.totalTokens = value.total_tokens;
+  if (typeof value.prompt_tokens === "number")
+    usage.inputTokens = value.prompt_tokens;
+  if (typeof value.completion_tokens === "number")
+    usage.outputTokens = value.completion_tokens;
+  if (typeof value.total_tokens === "number")
+    usage.totalTokens = value.total_tokens;
   return Object.keys(usage).length > 0 ? usage : undefined;
 }
 

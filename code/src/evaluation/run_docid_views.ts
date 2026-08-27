@@ -19,7 +19,10 @@ function normalizeDocidArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const unique = new Set<string>();
   for (const item of value) {
-    const docid = typeof item === "string" || typeof item === "number" ? String(item) : null;
+    const docid =
+      typeof item === "string" || typeof item === "number"
+        ? String(item)
+        : null;
     if (!docid) continue;
     unique.add(docid);
   }
@@ -66,7 +69,8 @@ export function getFinalAssistantText(run: RunDocidRecord): string {
 function deriveOpenedDocidsFromResult(run: RunDocidRecord): string[] {
   const opened = new Set<string>();
   for (const entry of normalizeResultEntries(run.result)) {
-    if (entry.type !== "tool_call" || entry.tool_name !== "read_document") continue;
+    if (entry.type !== "tool_call" || entry.tool_name !== "read_document")
+      continue;
     const args = entry.arguments;
     if (typeof args !== "object" || args === null) continue;
     const rawDocid = (args as { docid?: unknown }).docid;

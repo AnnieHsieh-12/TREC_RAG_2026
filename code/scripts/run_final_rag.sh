@@ -8,6 +8,11 @@ set -euo pipefail
 CODE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$CODE_ROOT"
 
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  ./node_modules/.bin/tsx src/trec-rag-2026/bounded-rag/run.ts --help
+  exit 0
+fi
+
 if [[ -f .env.local ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -50,7 +55,7 @@ run_entry() {
   fi
 
   DENSE_DOCS=60 DENSE_CHARS=1200 ANSWER_QUALITY_GATE="${ANSWER_QUALITY_GATE:-1}" \
-  npx tsx src/trec-rag-2026/bounded-rag/run.ts \
+  ./node_modules/.bin/tsx src/trec-rag-2026/bounded-rag/run.ts \
     --run-id "$RUN_ID" \
     --output-dir "$OUT" \
     --topics "$topics_file" \

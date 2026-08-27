@@ -1,4 +1,4 @@
-import { AGENTIC_RAG_BASELINE_PROMPT_VERSION, type TopicIdentity } from "./contracts";
+import { RAG_PROMPT_PROFILE, type TopicIdentity } from "./contracts";
 
 export type EvidenceDocumentForPrompt = {
   docid: string;
@@ -28,7 +28,9 @@ export function buildGroundedRevisionPrompt(
     citedDocs.map((d) => `[${d.docid}]\n${d.text}`).join("\n\n"),
     "",
     "Draft answer (each sentence with the docids it currently cites):",
-    sentences.map((s, i) => `${i + 1}. ${s.text}  — cites: ${s.docids.join(", ")}`).join("\n"),
+    sentences
+      .map((s, i) => `${i + 1}. ${s.text}  — cites: ${s.docids.join(", ")}`)
+      .join("\n"),
   ].join("\n");
 }
 
@@ -54,8 +56,8 @@ export type AnswerGenerationPromptInput = {
 
 export function buildJudgePrompt(input: JudgePromptInput): string {
   return [
-    `Prompt version: ${AGENTIC_RAG_BASELINE_PROMPT_VERSION}`,
-    "You are an evidence sufficiency judge for a TREC RAG baseline.",
+    `Prompt version: ${RAG_PROMPT_PROFILE}`,
+    "You are an evidence sufficiency judge for a TREC RAG pipeline.",
     "Use only the provided topic and evidence documents. Do not use outside knowledge.",
     "Decide whether the current evidence is sufficient to answer all important aspects of the narrative.",
     "Do not write the final answer.",
@@ -72,7 +74,9 @@ export function buildJudgePrompt(input: JudgePromptInput): string {
   ].join("\n");
 }
 
-export function buildFollowupQueryPrompt(input: FollowupQueryPromptInput): string {
+export function buildFollowupQueryPrompt(
+  input: FollowupQueryPromptInput,
+): string {
   return [
     "Return exactly one strict JSON object and nothing else:",
     '{"subquery":"..."}',
@@ -84,9 +88,11 @@ export function buildFollowupQueryPrompt(input: FollowupQueryPromptInput): strin
   ].join("\n");
 }
 
-export function buildAnswerGenerationPrompt(input: AnswerGenerationPromptInput): string {
+export function buildAnswerGenerationPrompt(
+  input: AnswerGenerationPromptInput,
+): string {
   return [
-    `Prompt version: ${AGENTIC_RAG_BASELINE_PROMPT_VERSION}`,
+    `Prompt version: ${RAG_PROMPT_PROFILE}`,
     "You generate an evidence-grounded TREC RAG answer.",
     "Use only the provided evidence documents. Do not use outside knowledge.",
     "Break the answer into individual factual sentences.",
@@ -107,12 +113,18 @@ export function buildAnswerGenerationPrompt(input: AnswerGenerationPromptInput):
   ].join("\n");
 }
 
-export function buildComprehensiveAnswerPrompt(input: AnswerGenerationPromptInput & { aspects?: string[]; atomic?: boolean }): string {
-  const aspectBlock = input.aspects && input.aspects.length > 0
-    ? ["Aspects to cover (write at least one grounded sentence for EACH; do not drop any):", ...input.aspects.map((a, i) => `  ${i + 1}. ${a}`)].join("\n")
-    : "First identify every distinct aspect the narrative asks about, then cover each of them.";
+export function buildComprehensiveAnswerPrompt(
+  input: AnswerGenerationPromptInput & { aspects?: string[]; atomic?: boolean },
+): string {
+  const aspectBlock =
+    input.aspects && input.aspects.length > 0
+      ? [
+          "Aspects to cover (write at least one grounded sentence for EACH; do not drop any):",
+          ...input.aspects.map((a, i) => `  ${i + 1}. ${a}`),
+        ].join("\n")
+      : "First identify every distinct aspect the narrative asks about, then cover each of them.";
   return [
-    `Prompt version: ${AGENTIC_RAG_BASELINE_PROMPT_VERSION}`,
+    `Prompt version: ${RAG_PROMPT_PROFILE}`,
     "You generate an evidence-grounded TREC RAG answer that comprehensively covers the narrative.",
     "Use only the provided evidence documents. Do not use outside knowledge.",
     aspectBlock,
@@ -136,16 +148,31 @@ export function buildComprehensiveAnswerPrompt(input: AnswerGenerationPromptInpu
   ].join("\n");
 }
 
-export function buildAspectAnswerPrompt(input: { topic: TopicIdentity; aspect: string; documents: EvidenceDocumentForPrompt[]; alreadyWritten?: string[]; atomic?: { maxWords: number; sentences: number }; expectedFacts?: string[] }): string {
-  const already = input.alreadyWritten && input.alreadyWritten.length > 0
-    ? ["Already written for this aspect (do NOT repeat these; only add NEW distinct facts not covered here):", ...input.alreadyWritten.map((s) => `  - ${s}`), ""].join("\n")
-    : "";
-  const wanted = input.expectedFacts && input.expectedFacts.length > 0
-    ? ["What a complete answer is expected to state about this aspect (use as a checklist of what to LOOK FOR in the evidence):",
-       ...input.expectedFacts.map((f) => `  - ${f}`),
-       "Only write those of the above that the evidence actually supports, and write them with the evidence's own specifics. NEVER state one of them just because it is listed here — an unsupported sentence costs more than a missing one.",
-       ""].join("\n")
-    : "";
+export function buildAspectAnswerPrompt(input: {
+  topic: TopicIdentity;
+  aspect: string;
+  documents: EvidenceDocumentForPrompt[];
+  alreadyWritten?: string[];
+  atomic?: { maxWords: number; sentences: number };
+  expectedFacts?: string[];
+}): string {
+  const already =
+    input.alreadyWritten && input.alreadyWritten.length > 0
+      ? [
+          "Already written for this aspect (do NOT repeat these; only add NEW distinct facts not covered here):",
+          ...input.alreadyWritten.map((s) => `  - ${s}`),
+          "",
+        ].join("\n")
+      : "";
+  const wanted =
+    input.expectedFacts && input.expectedFacts.length > 0
+      ? [
+          "What a complete answer is expected to state about this aspect (use as a checklist of what to LOOK FOR in the evidence):",
+          ...input.expectedFacts.map((f) => `  - ${f}`),
+          "Only write those of the above that the evidence actually supports, and write them with the evidence's own specifics. NEVER state one of them just because it is listed here — an unsupported sentence costs more than a missing one.",
+          "",
+        ].join("\n")
+      : "";
   return [
     "You write a few evidence-grounded sentences answering ONE specific aspect of a TREC RAG narrative.",
     "Use only the provided evidence documents. Do not use outside knowledge.",
@@ -203,7 +230,10 @@ export function buildAspectAnswerPrompt(input: { topic: TopicIdentity; aspect: s
   ].join("\n");
 }
 
-export function buildReflectionPrompt(topic: TopicIdentity, answerText: string): string {
+export function buildReflectionPrompt(
+  topic: TopicIdentity,
+  answerText: string,
+): string {
   return [
     "You review a draft answer against a narrative and identify what is still MISSING or only thinly covered.",
     "Return ONLY strict JSON, no prose:",
@@ -216,7 +246,10 @@ export function buildReflectionPrompt(topic: TopicIdentity, answerText: string):
   ].join("\n");
 }
 
-export function buildAspectDecompositionPrompt(topic: TopicIdentity, expectedFacts = false): string {
+export function buildAspectDecompositionPrompt(
+  topic: TopicIdentity,
+  expectedFacts = false,
+): string {
   return [
     "List every distinct aspect the following narrative asks about, so that together they cover the whole question.",
     "Return ONLY a strict JSON object, no prose:",
@@ -226,23 +259,31 @@ export function buildAspectDecompositionPrompt(topic: TopicIdentity, expectedFac
     "Rules: 8-12 aspects; each a short noun phrase (3-10 words); split the narrative FINELY so each aspect maps to a distinct sub-question a good answer must address; cover every distinct thing asked; do not overlap; do not add aspects the narrative does not ask about.",
     "Prefer MORE, NARROWER aspects over few broad ones: the answer is scored on how many distinct required facts it covers, so a fine split gives each fact its own targeted evidence.",
     ...(expectedFacts
-      ? ["For each aspect also give 2-4 expected_facts: each a single short declarative sentence stating a fact a complete answer would state about that aspect.",
-         "expected_facts are what a good answer SHOULD say, written from the narrative alone - you have no evidence documents here, so state them as the kind of claim to look for, not as verified fact.",
-         "Make them specific and checkable (who did what, with what effect), not restatements of the aspect title."]
+      ? [
+          "For each aspect also give 2-4 expected_facts: each a single short declarative sentence stating a fact a complete answer would state about that aspect.",
+          "expected_facts are what a good answer SHOULD say, written from the narrative alone - you have no evidence documents here, so state them as the kind of claim to look for, not as verified fact.",
+          "Make them specific and checkable (who did what, with what effect), not restatements of the aspect title.",
+        ]
       : []),
     "",
     formatTopic(topic),
   ].join("\n");
 }
 
-export function buildCompactAnswerGenerationPrompt(input: AnswerGenerationPromptInput): string {
+export function buildCompactAnswerGenerationPrompt(
+  input: AnswerGenerationPromptInput,
+): string {
   return [
     "Return only this JSON shape, with no Markdown or explanation:",
     '{"references":["shard_00000_00000"],"answer":[{"text":"Supported sentence.","citations":[0]}]}',
     "Use only the provided docs. Every sentence needs citations. Citation numbers are references array indexes. Use only cited docids in references.",
     formatTopic(input.topic),
     "Docs:",
-    formatDocuments(input.documents.slice(0, 5).map((doc) => ({ ...doc, text: doc.text.slice(0, 800) }))),
+    formatDocuments(
+      input.documents
+        .slice(0, 5)
+        .map((doc) => ({ ...doc, text: doc.text.slice(0, 800) })),
+    ),
   ].join("\n");
 }
 
@@ -259,31 +300,37 @@ function formatTopic(topic: TopicIdentity): string {
 function formatDocuments(documents: EvidenceDocumentForPrompt[]): string {
   if (documents.length === 0) return "(none)";
   return documents
-    .map((document, index) => [
-      `Document ${index}:`,
-      `docid: ${document.docid}`,
-      "text:",
-      document.text,
-    ].join("\n"))
+    .map((document, index) =>
+      [
+        `Document ${index}:`,
+        `docid: ${document.docid}`,
+        "text:",
+        document.text,
+      ].join("\n"),
+    )
     .join("\n\n");
 }
-
 
 export type DenseAnswerPromptInput = AnswerGenerationPromptInput & {
   checklist?: string[];
   enumerative?: { minWords: number; maxWords: number };
 };
 
-export function buildDenseAnswerGenerationPrompt(input: DenseAnswerPromptInput): string {
-  const checklistBlock = input.checklist && input.checklist.length > 0
-    ? [
-        "Organize the answer by these aspects of the topic; write roughly 80-120 words for EACH aspect (a few sentences each), in this order:",
-        ...input.checklist.map((c, i) => `${i + 1}. ${c.replace(/ \(vital\)$/, "")}`),
-        "",
-      ]
-    : [];
+export function buildDenseAnswerGenerationPrompt(
+  input: DenseAnswerPromptInput,
+): string {
+  const checklistBlock =
+    input.checklist && input.checklist.length > 0
+      ? [
+          "Organize the answer by these aspects of the topic; write roughly 80-120 words for EACH aspect (a few sentences each), in this order:",
+          ...input.checklist.map(
+            (c, i) => `${i + 1}. ${c.replace(/ \(vital\)$/, "")}`,
+          ),
+          "",
+        ]
+      : [];
   return [
-    `Prompt version: ${AGENTIC_RAG_BASELINE_PROMPT_VERSION}-dense`,
+    `Prompt version: ${RAG_PROMPT_PROFILE}-dense`,
     "You generate an evidence-grounded TREC RAG answer.",
     "Use only the provided evidence documents. Do not use outside knowledge.",
     "",
@@ -307,7 +354,9 @@ export function buildDenseAnswerGenerationPrompt(input: DenseAnswerPromptInput):
     "Good: 'Persistent gender and racial pay gaps affect athlete compensation, and business interests shape both media-rights deals and team management.'",
     "Bad: 'Athlete compensation is a controversial and important topic.'",
     "No introduction, no conclusion, no hedging, no restating the question - only supported facts.",
-    ...(process.env.DENSE_DRAFT_HINT ? ["", `FACT SELECTION EMPHASIS: ${process.env.DENSE_DRAFT_HINT}`] : []),
+    ...(process.env.DENSE_DRAFT_HINT
+      ? ["", `FACT SELECTION EMPHASIS: ${process.env.DENSE_DRAFT_HINT}`]
+      : []),
     "",
     ...checklistBlock,
     "Citations are zero-indexed positions into the references array, not docids.",
@@ -325,16 +374,17 @@ export function buildDenseAnswerGenerationPrompt(input: DenseAnswerPromptInput):
   ].join("\n");
 }
 
-
 export type LedgerAnswerPromptInput = DenseAnswerPromptInput & {
   subquestions: { id: string; text: string }[];
   /** Previous validation failure, included when regenerating the answer. */
   violation?: string;
 };
 
-export function buildLedgerAnswerPrompt(input: LedgerAnswerPromptInput): string {
+export function buildLedgerAnswerPrompt(
+  input: LedgerAnswerPromptInput,
+): string {
   return [
-    `Prompt profile: ${AGENTIC_RAG_BASELINE_PROMPT_VERSION}-evidence-plan`,
+    `Prompt profile: ${RAG_PROMPT_PROFILE}-evidence-plan`,
     "You generate an evidence-grounded TREC RAG answer under an EVIDENCE LEDGER policy.",
     "Use only the provided evidence documents. Do not use outside knowledge.",
     "",
@@ -376,16 +426,15 @@ export function buildLedgerAnswerPrompt(input: LedgerAnswerPromptInput): string 
     "Return only strict JSON. Do not use Markdown fences, comments, or explanatory prose.",
     "",
     "Required JSON shape:",
-    '{"answer_plan":[{"text":"One factual sentence.","citations":["shard_00000_00000"],'
-      + '"evidence":[{"docid":"shard_00000_00000","exact_quote":"verbatim span of at least twenty characters",'
-      + '"claim":"One factual sentence.","subquestion_ids":["Q1"]}]}]}',
+    '{"answer_plan":[{"text":"One factual sentence.","citations":["shard_00000_00000"],' +
+      '"evidence":[{"docid":"shard_00000_00000","exact_quote":"verbatim span of at least twenty characters",' +
+      '"claim":"One factual sentence.","subquestion_ids":["Q1"]}]}]}',
     "",
     formatTopic(input.topic),
     "Evidence documents:",
     formatDocuments(input.documents),
   ].join("\n");
 }
-
 
 export type VerifyReviseSentence = {
   text: string;
@@ -400,31 +449,49 @@ export type VerifyRevisePromptInput = {
   mode?: "drop" | "weaken" | "reattribute";
 };
 
-export function buildVerifyRevisePrompt(input: VerifyRevisePromptInput): string {
-  const sentenceBlocks = input.sentences.map((sentence, index) => [
-    `Sentence ${index}: ${sentence.text}`,
-    `Citations: ${JSON.stringify(sentence.citations)}`,
-    "Cited evidence excerpts:",
-    sentence.evidence.length === 0
-      ? "(none available)"
-      : sentence.evidence.map((e) => `- [${e.docid}] ${e.excerpt}`).join("\n"),
-  ].join("\n")).join("\n\n");
+export function buildVerifyRevisePrompt(
+  input: VerifyRevisePromptInput,
+): string {
+  const sentenceBlocks = input.sentences
+    .map((sentence, index) =>
+      [
+        `Sentence ${index}: ${sentence.text}`,
+        `Citations: ${JSON.stringify(sentence.citations)}`,
+        "Cited evidence excerpts:",
+        sentence.evidence.length === 0
+          ? "(none available)"
+          : sentence.evidence
+              .map((e) => `- [${e.docid}] ${e.excerpt}`)
+              .join("\n"),
+      ].join("\n"),
+    )
+    .join("\n\n");
   const ACTION = {
-    weaken: "- Not supported by its citations: rewrite it into a weaker related claim that the excerpts DO support (hedge, narrow, or generalize it); if other cited excerpts support the point, switch its citations to those; remove the sentence only when nothing in any excerpt relates to it.",
+    weaken:
+      "- Not supported by its citations: rewrite it into a weaker related claim that the excerpts DO support (hedge, narrow, or generalize it); if other cited excerpts support the point, switch its citations to those; remove the sentence only when nothing in any excerpt relates to it.",
     drop: "- Not supported at all: remove the sentence.",
-    reattribute: "- Not fully supported by its CURRENT citations: do NOT touch the wording. Instead search ALL the references listed below and re-cite the sentence to whichever reference(s) actually state it. Remove the sentence ONLY if no reference in the entire list supports any part of it.",
+    reattribute:
+      "- Not fully supported by its CURRENT citations: do NOT touch the wording. Instead search ALL the references listed below and re-cite the sentence to whichever reference(s) actually state it. Remove the sentence ONLY if no reference in the entire list supports any part of it.",
   } as const;
-  const mode = (input.mode && input.mode in ACTION ? input.mode : "drop") as keyof typeof ACTION;
+  const mode = (
+    input.mode && input.mode in ACTION ? input.mode : "drop"
+  ) as keyof typeof ACTION;
   return [
     "You are revising a cited RAG answer so that every sentence is fully supported by its cited evidence.",
     "For each sentence below, compare the sentence against its cited evidence excerpts and act:",
     "- Fully supported: keep the sentence unchanged with the same citations.",
     ...(mode === "reattribute"
-      ? ["- Over-extended (partially supported): keep the wording EXACTLY as written. Only fix its citations."]
-      : ["- Over-extended (partially supported): rewrite it so it claims ONLY what the excerpts support. Do not add new claims."]),
+      ? [
+          "- Over-extended (partially supported): keep the wording EXACTLY as written. Only fix its citations.",
+        ]
+      : [
+          "- Over-extended (partially supported): rewrite it so it claims ONLY what the excerpts support. Do not add new claims.",
+        ]),
     ACTION[mode],
     ...(mode === "reattribute"
-      ? ["HARD RULE: you may not add, delete, reorder or reword a single word of any sentence you keep. Your only edit is the citations array. Answers that change wording will be rejected."]
+      ? [
+          "HARD RULE: you may not add, delete, reorder or reword a single word of any sentence you keep. Your only edit is the citations array. Answers that change wording will be rejected.",
+        ]
       : []),
     "Rules: do not invent new references or citations; keep citation indices pointing into the references array below;",
     "each sentence at most three citations; keep the overall answer coherent and under 1024 words;",
@@ -448,7 +515,11 @@ export function buildIntegrationPrompt(input: {
   maxWords: number;
 }): string {
   const blocks = input.groups
-    .map((g, i) => [`[${i}] ${g.aspect}`, ...g.sentences.map((s) => `    - ${s}`)].join("\n"))
+    .map((g, i) =>
+      [`[${i}] ${g.aspect}`, ...g.sentences.map((s) => `    - ${s}`)].join(
+        "\n",
+      ),
+    )
     .join("\n\n");
   return [
     "You are integrating per-aspect draft answers into ONE coherent answer for the topic below.",

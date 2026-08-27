@@ -16,10 +16,12 @@ let loadedPromise: Promise<LoadedModel> | null = null;
 async function getModel(): Promise<LoadedModel> {
   if (!loadedPromise) {
     loadedPromise = (async () => {
-      const { AutoTokenizer, AutoModelForSequenceClassification, env } = await import("@huggingface/transformers");
+      const { AutoTokenizer, AutoModelForSequenceClassification, env } =
+        await import("@huggingface/transformers");
       env.cacheDir = process.env.TRANSFORMERS_CACHE ?? ".cache/transformers";
       const tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID);
-      const model = await AutoModelForSequenceClassification.from_pretrained(MODEL_ID);
+      const model =
+        await AutoModelForSequenceClassification.from_pretrained(MODEL_ID);
       return { tokenizer, model };
     })();
   }
@@ -30,7 +32,11 @@ export type RerankCandidate = { docid: string; text: string };
 // `score` is the raw cross-encoder logit (unbounded); `calibratedScore` is sigmoid(score) in (0,1),
 // a pseudo-confidence usable as a cross-topic threshold per the "variable submission depth,
 // no padding to a conventional cutoff" rule.
-export type RerankedEntry = { docid: string; score: number; calibratedScore: number };
+export type RerankedEntry = {
+  docid: string;
+  score: number;
+  calibratedScore: number;
+};
 
 function sigmoid(x: number): number {
   return 1 / (1 + Math.exp(-x));
@@ -59,9 +65,15 @@ export async function rerankWithCrossEncoder(
     });
     const output = await model(inputs);
     // ms-marco-MiniLM cross-encoders are trained as single-logit relevance regressors.
-    const logits: number[] = Array.from(output.logits.data as ArrayLike<number>);
+    const logits: number[] = Array.from(
+      output.logits.data as ArrayLike<number>,
+    );
     const score = logits[0] ?? 0;
-    scores.push({ docid: candidate.docid, score, calibratedScore: sigmoid(score) });
+    scores.push({
+      docid: candidate.docid,
+      score,
+      calibratedScore: sigmoid(score),
+    });
   }
   return scores.sort((a, b) => b.score - a.score);
 }

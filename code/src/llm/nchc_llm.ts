@@ -1,6 +1,16 @@
 import type { NchcLlmConfig } from "./config";
-import { errorMessageWithRedactedSecrets, LlmConfigError, LlmProviderError } from "./errors";
-import type { LlmClient, LlmGenerateOptions, LlmGenerateResult, LlmMessage, LlmUsage } from "./types";
+import {
+  errorMessageWithRedactedSecrets,
+  LlmConfigError,
+  LlmProviderError,
+} from "./errors";
+import type {
+  LlmClient,
+  LlmGenerateOptions,
+  LlmGenerateResult,
+  LlmMessage,
+  LlmUsage,
+} from "./types";
 
 export const NCHC_CHAT_COMPLETIONS_PATH = "/chat/completions";
 
@@ -26,7 +36,8 @@ export class NchcLlmClient implements LlmClient {
 
   async generate(options: LlmGenerateOptions): Promise<LlmGenerateResult> {
     const apiKey = this.env[this.apiKeyEnv]?.trim();
-    if (!apiKey) throw new LlmConfigError(`${this.apiKeyEnv} must be set for nchc_llm.`);
+    if (!apiKey)
+      throw new LlmConfigError(`${this.apiKeyEnv} must be set for nchc_llm.`);
 
     const started = Date.now();
     const url = `${this.baseUrl}${NCHC_CHAT_COMPLETIONS_PATH}`;
@@ -45,7 +56,6 @@ export class NchcLlmClient implements LlmClient {
           max_tokens: options.maxTokens,
           // NCHC gpt-oss currently corrupts some outputs when OpenAI-style response_format is sent.
           // Keep JSON enforcement in prompts and validators instead of passing response_format.
-
         }),
         signal: options.signal,
       });
@@ -72,7 +82,10 @@ export class NchcLlmClient implements LlmClient {
     }
 
     const text = extractAssistantText(parsed);
-    if (text.trim().length === 0) throw new LlmProviderError("nchc_llm returned an empty assistant message.");
+    if (text.trim().length === 0)
+      throw new LlmProviderError(
+        "nchc_llm returned an empty assistant message.",
+      );
 
     return {
       provider: this.provider,
@@ -80,12 +93,17 @@ export class NchcLlmClient implements LlmClient {
       text,
       latencyMs: Date.now() - started,
       ...(typeof parsed.id === "string" ? { requestId: parsed.id } : {}),
-      ...(normalizeUsage(parsed.usage) ? { usage: normalizeUsage(parsed.usage) } : {}),
+      ...(normalizeUsage(parsed.usage)
+        ? { usage: normalizeUsage(parsed.usage) }
+        : {}),
     };
   }
 }
 
-function toOpenAiMessage(message: LlmMessage): { role: string; content: string } {
+function toOpenAiMessage(message: LlmMessage): {
+  role: string;
+  content: string;
+} {
   return { role: message.role, content: message.content };
 }
 
@@ -98,7 +116,8 @@ function extractAssistantText(value: NchcChatCompletionsResponse): string {
   const first = value.choices[0];
   if (!isRecord(first)) return "";
   const message = first.message;
-  if (isRecord(message) && typeof message.content === "string") return message.content;
+  if (isRecord(message) && typeof message.content === "string")
+    return message.content;
   if (typeof first.text === "string") return first.text;
   return "";
 }
@@ -106,9 +125,12 @@ function extractAssistantText(value: NchcChatCompletionsResponse): string {
 function normalizeUsage(value: unknown): LlmUsage | undefined {
   if (!isRecord(value)) return undefined;
   const usage: LlmUsage = {};
-  if (typeof value.prompt_tokens === "number") usage.inputTokens = value.prompt_tokens;
-  if (typeof value.completion_tokens === "number") usage.outputTokens = value.completion_tokens;
-  if (typeof value.total_tokens === "number") usage.totalTokens = value.total_tokens;
+  if (typeof value.prompt_tokens === "number")
+    usage.inputTokens = value.prompt_tokens;
+  if (typeof value.completion_tokens === "number")
+    usage.outputTokens = value.completion_tokens;
+  if (typeof value.total_tokens === "number")
+    usage.totalTokens = value.total_tokens;
   return Object.keys(usage).length > 0 ? usage : undefined;
 }
 

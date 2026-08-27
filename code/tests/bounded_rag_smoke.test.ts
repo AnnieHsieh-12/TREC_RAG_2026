@@ -32,19 +32,26 @@ test("bounded RAG completes one topic with mocked retrieval and LLM services", a
       return jsonResponse({ candidates: [{ docid: DOCID, score: 9.5 }] });
     }
     if (url.includes("/doc/")) {
-      return jsonResponse({ doc: { text: "The documented fact is supported by this passage." } });
+      return jsonResponse({
+        doc: { text: "The documented fact is supported by this passage." },
+      });
     }
     if (url === "http://mock.openai/v1/chat/completions") {
       llmCalls += 1;
-      const content = llmCalls === 1
-        ? JSON.stringify({ enough: true, queries: [] })
-        : JSON.stringify({
-            references: [DOCID],
-            answer: [{ text: "The documented fact is supported.", citations: [0] }],
-          });
+      const content =
+        llmCalls === 1
+          ? JSON.stringify({ enough: true, queries: [] })
+          : JSON.stringify({
+              references: [DOCID],
+              answer: [
+                { text: "The documented fact is supported.", citations: [0] },
+              ],
+            });
       return jsonResponse({ choices: [{ message: { content } }] });
     }
-    throw new Error(`Unexpected smoke-test request: ${url} ${init?.method ?? "GET"}`);
+    throw new Error(
+      `Unexpected smoke-test request: ${url} ${init?.method ?? "GET"}`,
+    );
   };
 
   try {
@@ -72,9 +79,16 @@ test("bounded RAG completes one topic with mocked retrieval and LLM services", a
       force: true,
     });
 
-    assert.deepEqual(result.validation, { ok: true, output_count: 1, expected_count: 1 });
+    assert.deepEqual(result.validation, {
+      ok: true,
+      output_count: 1,
+      expected_count: 1,
+    });
     assert.equal(llmCalls, 2);
-    const rows = readFileSync(join(output, "rag_output_trec_rag_2026.jsonl"), "utf8")
+    const rows = readFileSync(
+      join(output, "rag_output_trec_rag_2026.jsonl"),
+      "utf8",
+    )
       .trim()
       .split("\n")
       .map((line) => JSON.parse(line));

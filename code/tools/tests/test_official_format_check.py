@@ -25,14 +25,14 @@ class OfficialFormatCheckTests(unittest.TestCase):
             )
             errors, warnings = official_format_check.check_r(run, {"1", "2"})
             self.assertEqual(errors, [])
-            self.assertTrue(any("同一個 k" in warning for warning in warnings))
+            self.assertTrue(any("all 2 topics use k" in warning for warning in warnings))
 
     def test_invalid_retrieval_docid_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             run = Path(tmp) / "run.tsv"
             run.write_text("1 Q0 bad-docid 1 1.0 fixture\n", encoding="utf-8")
             errors, _ = official_format_check.check_r(run, {"1"})
-            self.assertTrue(any("非 ClimbMix docid" in error for error in errors))
+            self.assertTrue(any("invalid ClimbMix docid" in error for error in errors))
 
     def test_rag_accepts_direct_docid_empty_citations_and_uncited_refs(self):
         value = {
@@ -77,12 +77,12 @@ class OfficialFormatCheckTests(unittest.TestCase):
                 output, {"1": "Example narrative"}
             )
             self.assertTrue(any("1024" in error for error in errors))
-            self.assertTrue(any("越界" in error for error in errors))
+            self.assertTrue(any("out of range" in error for error in errors))
 
     def test_runtime_uses_one_canonical_validator(self):
         code_root = Path(__file__).resolve().parents[2]
-        canonical = code_root / "src/trec-rag-2026/agentic-rag-baseline/validation.ts"
-        duplicate = code_root / "rag/src/trec-rag-2026/agentic-rag-baseline/validation.ts"
+        canonical = code_root / "src/trec-rag-2026/rag-core/validation.ts"
+        duplicate = code_root / "rag/src/trec-rag-2026/rag-core/validation.ts"
         self.assertTrue(canonical.is_file())
         self.assertFalse(duplicate.exists())
 

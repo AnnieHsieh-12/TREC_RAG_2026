@@ -20,9 +20,6 @@ import math
 import os
 import statistics
 
-import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
-
 MODEL = "cross-encoder/ms-marco-MiniLM-L6-v2"
 INDEX = os.environ.get("PYSERINI_INDEX", "climbmix-400b")
 CACHE = os.environ.get("DOC_CACHE_DIR", os.path.join(".cache", "docs"))
@@ -131,17 +128,45 @@ def main():
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--maxlen", type=int, default=512)
     ap.add_argument("--threads", type=int, default=64)
+    ap.add_argument(
+        "--device",
+        choices=("auto", "cpu", "cuda", "mps"),
+        default="auto",
+        help="inference device; auto prefers CUDA, then MPS, then CPU",
+    )
     ap.add_argument("--out", default="")
     ap.add_argument("--variant", default="", help="select a variant such as 'RRF 1:1' without qrels evaluation")
     args = ap.parse_args()
+
+    try:
+        import torch
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+    except ImportError as error:
+        ap.error(
+            "deep reranking dependencies are missing; install "
+            "code/requirements-deepce.txt"
+        )
 
     pool = load_pool(args.run)
     narr = load_narratives(args.run)
     qrels = load_qrels()
 
-    # CPU is the portable default. Sites with a compatible CUDA build may
-    # change this locally after validating their PyTorch installation.
-    dev = "cpu"
+    if args.device == "auto":
+        if torch.cuda.is_available():
+            dev = "cuda"
+        elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            dev = "mps"
+        else:
+            dev = "cpu"
+    else:
+        dev = args.device
+    if dev == "cuda" and not torch.cuda.is_available():
+        ap.error("--device cuda requested, but CUDA is unavailable")
+    if dev == "mps" and not (
+        getattr(torch.backends, "mps", None) and torch.backends.mps.is_available()
+    ):
+        ap.error("--device mps requested, but MPS is unavailable")
+    print(f"Using inference device: {dev}", flush=True)
     torch.set_num_threads(args.threads)
     tok = AutoTokenizer.from_pretrained(MODEL)
     model = AutoModelForSequenceClassification.from_pretrained(MODEL).to(dev).eval()

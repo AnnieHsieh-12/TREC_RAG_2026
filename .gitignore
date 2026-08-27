@@ -20,6 +20,7 @@ out/
 artifacts/
 logs/
 *.log
+*.ses
 
 # Model and document caches
 .cache/

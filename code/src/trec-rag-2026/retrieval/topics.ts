@@ -11,12 +11,16 @@ export type ResolveTrecRag2026TopicsPathOptions = {
   repoRoot?: string;
 };
 
-export function resolveTrecRag2026TopicsPath(options: ResolveTrecRag2026TopicsPathOptions = {}): string {
+export function resolveTrecRag2026TopicsPath(
+  options: ResolveTrecRag2026TopicsPathOptions = {},
+): string {
   const repoRoot = options.repoRoot ?? process.cwd();
   if (options.explicitTopicsPath) {
     return resolve(repoRoot, options.explicitTopicsPath);
   }
-  const envTopicsPath = (options.env ?? process.env)[TREC_RAG_2026_TOPICS_ENV]?.trim();
+  const envTopicsPath = (options.env ?? process.env)[
+    TREC_RAG_2026_TOPICS_ENV
+  ]?.trim();
   if (envTopicsPath) {
     return resolve(repoRoot, envTopicsPath);
   }
@@ -50,13 +54,19 @@ export function parseTrecRag2026TopicsTsv(text: string): TrecRagTopic[] {
     }
     const [topicId, narrative] = columns;
     if (!topicId) {
-      throw new Error(`Malformed topics row ${lineNumber}: topic_id must be non-empty.`);
+      throw new Error(
+        `Malformed topics row ${lineNumber}: topic_id must be non-empty.`,
+      );
     }
     if (/\s/.test(topicId)) {
-      throw new Error(`Malformed topics row ${lineNumber}: topic_id must not contain whitespace.`);
+      throw new Error(
+        `Malformed topics row ${lineNumber}: topic_id must not contain whitespace.`,
+      );
     }
     if (!narrative) {
-      throw new Error(`Malformed topics row ${lineNumber}: narrative must be non-empty.`);
+      throw new Error(
+        `Malformed topics row ${lineNumber}: narrative must be non-empty.`,
+      );
     }
     if (seen.has(topicId)) {
       throw new Error(`Duplicate topic_id in topics file: ${topicId}`);
@@ -67,7 +77,9 @@ export function parseTrecRag2026TopicsTsv(text: string): TrecRagTopic[] {
   return topics;
 }
 
-export async function readTrecRag2026Topics(path: string): Promise<TrecRagTopic[]> {
+export async function readTrecRag2026Topics(
+  path: string,
+): Promise<TrecRagTopic[]> {
   const text = await readFile(path, "utf8");
   return parseTrecRag2026TopicsTsv(text);
 }

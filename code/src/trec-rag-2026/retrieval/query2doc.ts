@@ -13,9 +13,9 @@
 import type { LlmClient } from "../../llm/types";
 
 export type Query2DocResult = {
-  pseudoDoc: string;      // the raw generated passage (for tracing)
-  expandedQuery: string;  // narrative*repeat + pseudoDoc, ready for BM25
-  ok: boolean;            // false => generation failed, caller should fall back to raw query only
+  pseudoDoc: string; // the raw generated passage (for tracing)
+  expandedQuery: string; // narrative*repeat + pseudoDoc, ready for BM25
+  ok: boolean; // false => generation failed, caller should fall back to raw query only
 };
 
 function buildPrompt(narrative: string): string {
@@ -34,19 +34,29 @@ function buildPrompt(narrative: string): string {
 // preserving the useful expansion vocabulary.
 function trimWords(text: string, maxWords: number): string {
   const words = text.replace(/\s+/g, " ").trim().split(" ");
-  return words.length <= maxWords ? words.join(" ") : words.slice(0, maxWords).join(" ");
+  return words.length <= maxWords
+    ? words.join(" ")
+    : words.slice(0, maxWords).join(" ");
 }
 
 // Strip characters that would break the Pyserini query or add noise; BM25 only
 // needs alphanumeric tokens.
 function sanitizeForQuery(text: string): string {
-  return text.replace(/[\r\n]+/g, " ").replace(/["'`{}\[\]]/g, " ").replace(/\s+/g, " ").trim();
+  return text
+    .replace(/[\r\n]+/g, " ")
+    .replace(/["'`{}\[\]]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export async function generateQuery2Doc(
   llm: LlmClient,
   narrative: string,
-  opts: { queryRepeat: number; maxPseudoDocWords: number; maxTokens: number } = { queryRepeat: 5, maxPseudoDocWords: 180, maxTokens: 400 },
+  opts: {
+    queryRepeat: number;
+    maxPseudoDocWords: number;
+    maxTokens: number;
+  } = { queryRepeat: 5, maxPseudoDocWords: 180, maxTokens: 400 },
 ): Promise<Query2DocResult> {
   const rawQuery = sanitizeForQuery(narrative);
   try {
@@ -55,7 +65,10 @@ export async function generateQuery2Doc(
       temperature: 0,
       maxTokens: opts.maxTokens,
     });
-    const pseudoDoc = trimWords(sanitizeForQuery(result.text ?? ""), opts.maxPseudoDocWords);
+    const pseudoDoc = trimWords(
+      sanitizeForQuery(result.text ?? ""),
+      opts.maxPseudoDocWords,
+    );
     if (pseudoDoc.length < 20) {
       // empty / degenerate generation: no usable expansion, signal fallback
       return { pseudoDoc, expandedQuery: rawQuery, ok: false };
@@ -63,7 +76,12 @@ export async function generateQuery2Doc(
     // Query2Doc sparse form: repeat the original query so its terms keep
     // dominant TF, then append the pseudo-doc vocabulary.
     const expandedQuery = sanitizeForQuery(
-      Array.from({ length: Math.max(1, opts.queryRepeat) }, () => rawQuery).join(" ") + " " + pseudoDoc,
+      Array.from(
+        { length: Math.max(1, opts.queryRepeat) },
+        () => rawQuery,
+      ).join(" ") +
+        " " +
+        pseudoDoc,
     );
     return { pseudoDoc, expandedQuery, ok: true };
   } catch {

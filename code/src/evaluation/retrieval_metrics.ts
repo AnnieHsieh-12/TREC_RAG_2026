@@ -41,7 +41,9 @@ export function parseIntegerCutoffs(value: string): number[] {
     .map((part) => Number.parseInt(part.trim(), 10))
     .filter((part) => Number.isFinite(part) && part > 0);
   if (numbers.length === 0) {
-    throw new Error(`Expected at least one positive integer cutoff, got: ${value}`);
+    throw new Error(
+      `Expected at least one positive integer cutoff, got: ${value}`,
+    );
   }
   return [...new Set(numbers)].sort((left, right) => left - right);
 }
@@ -54,7 +56,9 @@ export function readQrels(path: string): Qrels {
     if (!line) continue;
     const parts = line.split(/\s+/);
     if (parts.length < 4) {
-      throw new Error(`Invalid qrels line ${lineIndex + 1}: expected at least 4 columns`);
+      throw new Error(
+        `Invalid qrels line ${lineIndex + 1}: expected at least 4 columns`,
+      );
     }
     const [queryId, , docid, relRaw] = parts;
     const rel = Number.parseInt(relRaw, 10);
@@ -84,7 +88,9 @@ export function readQueryIds(path: string): string[] {
 export function getRunFiles(runDir: string): string[] {
   return readdirSync(runDir)
     .filter((name) => /^\d+\.json$/.test(name))
-    .sort((left, right) => Number.parseInt(left, 10) - Number.parseInt(right, 10));
+    .sort(
+      (left, right) => Number.parseInt(left, 10) - Number.parseInt(right, 10),
+    );
 }
 
 export function resolveBenchmarkResultDir(runDir: string): string {
@@ -140,21 +146,33 @@ export function readRunFile(path: string): Rankings {
   }
 
   for (const [queryId, entries] of rankings) {
-    entries.sort((left, right) => left.rank - right.rank || right.score - left.score);
+    entries.sort(
+      (left, right) => left.rank - right.rank || right.score - left.score,
+    );
     rankings.set(queryId, entries);
   }
   return rankings;
 }
 
-export function writeRunFile(path: string, rankings: Rankings, queryIds: string[]): void {
+export function writeRunFile(
+  path: string,
+  rankings: Rankings,
+  queryIds: string[],
+): void {
   const lines: string[] = [];
   for (const queryId of queryIds) {
     const entries = rankings.get(queryId) ?? [];
     for (const [index, entry] of entries.entries()) {
-      lines.push(`${queryId} Q0 ${entry.docid} ${index + 1} ${entry.score.toFixed(6)} pi-serini`);
+      lines.push(
+        `${queryId} Q0 ${entry.docid} ${index + 1} ${entry.score.toFixed(6)} pi-serini`,
+      );
     }
   }
-  writeFileSync(path, lines.join("\n") + (lines.length > 0 ? "\n" : ""), "utf8");
+  writeFileSync(
+    path,
+    lines.join("\n") + (lines.length > 0 ? "\n" : ""),
+    "utf8",
+  );
 }
 
 function gain(rel: number, mode: BenchmarkNdcgGainMode): number {
@@ -182,8 +200,14 @@ export function evaluateRankings(
   semantics: EvaluationMetricSemantics = {},
 ): EvaluationResult {
   const ndcgGainMode = semantics.ndcgGainMode ?? "exponential";
-  const recallRelevantThreshold = Math.max(1, semantics.recallRelevantThreshold ?? 1);
-  const binaryRelevantThreshold = Math.max(1, semantics.binaryRelevantThreshold ?? 1);
+  const recallRelevantThreshold = Math.max(
+    1,
+    semantics.recallRelevantThreshold ?? 1,
+  );
+  const binaryRelevantThreshold = Math.max(
+    1,
+    semantics.binaryRelevantThreshold ?? 1,
+  );
 
   const recallMacroSums = new Map<number, number>();
   const recallMicroHits = new Map<number, number>();
@@ -236,21 +260,30 @@ export function evaluateRankings(
     for (const cutoff of cutoffs.recallCutoffs) {
       const hits = rankedDocids
         .slice(0, cutoff)
-        .reduce((count, docid) => count + (recallRelevantDocids.has(docid) ? 1 : 0), 0);
+        .reduce(
+          (count, docid) => count + (recallRelevantDocids.has(docid) ? 1 : 0),
+          0,
+        );
       recallMacroSums.set(
         cutoff,
-        (recallMacroSums.get(cutoff) ?? 0) + (goldCount > 0 ? hits / goldCount : 0),
+        (recallMacroSums.get(cutoff) ?? 0) +
+          (goldCount > 0 ? hits / goldCount : 0),
       );
       recallMicroHits.set(cutoff, (recallMicroHits.get(cutoff) ?? 0) + hits);
     }
 
     for (const cutoff of cutoffs.ndcgCutoffs) {
-      const actual = rankedDocids.slice(0, cutoff).map((docid) => relevant.get(docid) ?? 0);
-      const ideal = [...relevant.values()].sort((left, right) => right - left).slice(0, cutoff);
+      const actual = rankedDocids
+        .slice(0, cutoff)
+        .map((docid) => relevant.get(docid) ?? 0);
+      const ideal = [...relevant.values()]
+        .sort((left, right) => right - left)
+        .slice(0, cutoff);
       const idealDcg = dcg(ideal, ndcgGainMode);
       ndcgSums.set(
         cutoff,
-        (ndcgSums.get(cutoff) ?? 0) + (idealDcg > 0 ? dcg(actual, ndcgGainMode) / idealDcg : 0),
+        (ndcgSums.get(cutoff) ?? 0) +
+          (idealDcg > 0 ? dcg(actual, ndcgGainMode) / idealDcg : 0),
       );
     }
 
@@ -290,11 +323,17 @@ export function evaluateRankings(
   }
 
   for (const cutoff of cutoffs.ndcgCutoffs) {
-    ndcgByCutoff.set(cutoff, (ndcgSums.get(cutoff) ?? 0) / Math.max(queryCount, 1));
+    ndcgByCutoff.set(
+      cutoff,
+      (ndcgSums.get(cutoff) ?? 0) / Math.max(queryCount, 1),
+    );
   }
 
   for (const cutoff of cutoffs.mrrCutoffs) {
-    mrrByCutoff.set(cutoff, (mrrSums.get(cutoff) ?? 0) / Math.max(queryCount, 1));
+    mrrByCutoff.set(
+      cutoff,
+      (mrrSums.get(cutoff) ?? 0) / Math.max(queryCount, 1),
+    );
   }
 
   return {
@@ -309,24 +348,36 @@ export function evaluateRankings(
   };
 }
 
-export function getMetricValue(result: EvaluationResult, metric: string): number {
+export function getMetricValue(
+  result: EvaluationResult,
+  metric: string,
+): number {
   if (metric === "macro_recall@all") return result.macroRecallAll;
   if (metric === "micro_recall@all") return result.microRecallAll;
   if (metric === "map") return result.map;
 
   const recallMatch = /^macro_recall@(\d+)$/.exec(metric);
   if (recallMatch) {
-    return result.macroRecallByCutoff.get(Number.parseInt(recallMatch[1], 10)) ?? 0;
+    return (
+      result.macroRecallByCutoff.get(Number.parseInt(recallMatch[1], 10)) ?? 0
+    );
   }
 
   const microRecallMatch = /^micro_recall@(\d+)$/.exec(metric);
   if (microRecallMatch) {
-    return result.microRecallByCutoff.get(Number.parseInt(microRecallMatch[1], 10)) ?? 0;
+    return (
+      result.microRecallByCutoff.get(
+        Number.parseInt(microRecallMatch[1], 10),
+      ) ?? 0
+    );
   }
 
   const trecRecallMatch = /^recall_(\d+)$/.exec(metric);
   if (trecRecallMatch) {
-    return result.macroRecallByCutoff.get(Number.parseInt(trecRecallMatch[1], 10)) ?? 0;
+    return (
+      result.macroRecallByCutoff.get(Number.parseInt(trecRecallMatch[1], 10)) ??
+      0
+    );
   }
 
   const ndcgMatch = /^ndcg_cut_(\d+)$/.exec(metric);
@@ -366,11 +417,15 @@ export function formatEvaluationOutput(
   }
 
   for (const cutoff of cutoffs.ndcgCutoffs) {
-    lines.push(`ndcg_cut_${cutoff}\tall\t${roundMetric(result.ndcgByCutoff.get(cutoff) ?? 0)}`);
+    lines.push(
+      `ndcg_cut_${cutoff}\tall\t${roundMetric(result.ndcgByCutoff.get(cutoff) ?? 0)}`,
+    );
   }
 
   for (const cutoff of cutoffs.mrrCutoffs) {
-    lines.push(`recip_rank_${cutoff}\tall\t${roundMetric(result.mrrByCutoff.get(cutoff) ?? 0)}`);
+    lines.push(
+      `recip_rank_${cutoff}\tall\t${roundMetric(result.mrrByCutoff.get(cutoff) ?? 0)}`,
+    );
   }
 
   lines.push(`map\tall\t${roundMetric(result.map)}`);

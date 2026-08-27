@@ -21,10 +21,11 @@ ap.add_argument("--tag", default="cfda-integrated")
 
 def load(path):
     d = collections.defaultdict(list)
-    for line in open(path):
-        x = line.split()
-        if len(x) >= 5:
-            d[x[0]].append((int(x[3]), x[2], float(x[4])))
+    with open(path, encoding="utf-8") as source:
+        for line in source:
+            x = line.split()
+            if len(x) >= 5:
+                d[x[0]].append((int(x[3]), x[2], float(x[4])))
     return {q: sorted(v) for q, v in d.items()}
 
 

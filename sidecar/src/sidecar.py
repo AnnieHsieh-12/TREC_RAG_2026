@@ -83,7 +83,9 @@ def _load_raw_pools(qid):
         if not os.path.exists(path):
             continue
         try:
-            for c in json.load(open(path)):
+            with open(path, encoding="utf-8") as pool_file:
+                candidates = json.load(pool_file)
+            for c in candidates:
                 d = c.get("doc")
                 if isinstance(d, str):
                     try:
@@ -106,7 +108,8 @@ def get_doc_text(docid, qid=None):
         return _raw_pool_texts[docid]
     fpath = os.path.join(DOCTEXT_CACHE, f"{docid}.txt")
     if os.path.exists(fpath):
-        return open(fpath, encoding="utf-8").read()
+        with open(fpath, encoding="utf-8") as cached_file:
+            return cached_file.read()
     _pace_fetch()
     with _fetch_slots:
         doc = fetch_doc(docid, _token, parse=True)
@@ -213,58 +216,12 @@ _codex_calls = 0
 _codex_lock = threading.Lock()
 
 
-CLAUDE_BIN = os.environ.get("SIDECAR_CLAUDE_BIN", "claude")
-
-
-def handle_llm_claude(body):
-    """Claude Code CLI bridge: same contract as the codex path.
-
-    Headless -p mode, no tools granted (permission prompts auto-deny in -p),
-    same injection guard and empty-reply retries. Runs in a scratch cwd so no
-    project CLAUDE.md is picked up.
-    """
-    global _codex_calls
-    import subprocess
-    prompt = CODEX_GUARD + body["prompt"]
-    model = body.get("model", "claude-fable-5")
-    last_err = ""
-    for attempt in range(4):
-        try:
-            env = dict(os.environ)
-            cli_home = os.environ.get("SIDECAR_CLI_HOME")
-            if cli_home:
-                env["HOME"] = cli_home
-            proc = subprocess.run(
-                [CLAUDE_BIN, "-p", "--model", model, "--output-format", "text",
-                 prompt if attempt == 0 else f"{prompt}\n[retry {attempt}]"],
-                capture_output=True, text=True, timeout=300,
-                cwd=CLI_WORKDIR, env=env)
-            last_err = proc.stderr[-300:]
-            reply = (proc.stdout or "").strip()
-        except subprocess.TimeoutExpired:
-            last_err = "claude -p timed out (300s)"
-            reply = ""
-        if reply:
-            with _codex_lock:
-                _codex_calls += 1
-                calls = _codex_calls
-            return {"text": reply, "calls_total": calls}
-    raise RuntimeError(f"claude -p gave no reply after 4 attempts; last: {last_err}")
-
-
 def handle_llm(body):
-    """Codex CLI bridge: one prompt -> one completion on subscription quota.
-
-    Mirrors the evaluator's proven wiring: read-only sandbox, injection guard,
-    timeout handling, and cache-busting retries (NCHC-style replay is not an
-    issue for codex, but empty replies and timeouts are).
-    """
+    """Run one guarded prompt through the authenticated Codex CLI."""
     global _codex_calls
     import subprocess
     import tempfile
     model = body.get("model", "gpt-5.6-sol")
-    if model.startswith("claude"):
-        return handle_llm_claude(body)
     prompt = CODEX_GUARD + body["prompt"]
     with tempfile.NamedTemporaryFile(mode="r", suffix=".txt", delete=False) as tf:
         out_path = tf.name
@@ -284,7 +241,8 @@ def handle_llm(body):
                 last_err = "codex exec timed out (300s)"
             reply = ""
             if os.path.exists(out_path):
-                reply = open(out_path).read().strip()
+                with open(out_path, encoding="utf-8") as output_file:
+                    reply = output_file.read().strip()
             if reply:
                 with _codex_lock:
                     _codex_calls += 1
@@ -314,7 +272,7 @@ def handle_sentence_evidence(body):
             else:
                 chunk = text[:budget]
                 score = 0.0
-            # score = support-strength proxy (skills v0.6.0 rule: order a
+            # score = support-strength proxy (organizer rule: order a
             # sentence's citations from strongest to weakest support)
             excerpts.append({"docid": docid, "text": chunk, "score": score})
         out.append({"excerpts": excerpts})

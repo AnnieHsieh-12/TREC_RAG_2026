@@ -3,14 +3,16 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "format": "prettier --write config src tests",
+    "format:check": "prettier --check config src tests",
     "test:ts": "tsx --test tests/*.test.ts",
-    "test:smoke": "tsx --test tests/bounded_rag_smoke.test.ts",
+    "test:smoke": "tsx --test tests/*smoke.test.ts",
     "test:python": "python3 -m unittest discover -s tools/tests -p 'test_*.py'",
-    "check": "npm run typecheck && npm run test:ts && npm run test:python",
+    "check": "npm run format:check && npm run typecheck && npm run test:ts && npm run test:python",
     "run:retrieval": "bash scripts/run_retrieval_policy.sh",
     "run:rag": "bash scripts/run_final_rag.sh"
   },
@@ -21,6 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
+    "prettier": "3.6.2",
     "typescript": "^5.9.2"
   },
   "overrides": {

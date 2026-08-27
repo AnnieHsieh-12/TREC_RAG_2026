@@ -4,7 +4,7 @@ import {
   type PolicyOverride,
 } from "../src/trec-rag-2026/agentic-rag/iterative_runner";
 import {
-  applyVersionModels,
+  applyFinalModels,
   parse,
 } from "../src/trec-rag-2026/agentic-rag/run_iterative_entry";
 
@@ -54,11 +54,26 @@ export const FINAL_MODELS = {
   query: "codex:gpt-5.6-sol",
 };
 
+const USAGE = `Usage: npm run run:retrieval -- [options]
+
+Required:
+  --run-id ID
+  --output-dir PATH
+  --topics PATH
+  --qrels-dir PATH
+
+Optional:
+  --team-id ID                 default: pi-serini
+  --limit-topics N
+  --force
+  --resume`;
+
 async function main() {
-  const options = applyVersionModels(
-    parse(process.argv.slice(2)),
-    FINAL_MODELS,
-  );
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    console.log(USAGE);
+    return;
+  }
+  const options = applyFinalModels(parse(process.argv.slice(2)), FINAL_MODELS);
   const result = await runIterativeAgenticRag({
     ...options,
     policy: FINAL_POLICY,
@@ -66,7 +81,10 @@ async function main() {
   console.log(JSON.stringify(result, null, 2));
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

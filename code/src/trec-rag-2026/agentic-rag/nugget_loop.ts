@@ -9,7 +9,7 @@
 // The predicted list is built only from the narrative and retrieved evidence.
 
 import type { LlmClient } from "../../llm/types";
-import type { TopicIdentity } from "../agentic-rag-baseline/contracts";
+import type { TopicIdentity } from "../rag-core/contracts";
 
 export type NuggetAssignment = "support" | "partial_support" | "not_support";
 
@@ -20,7 +20,12 @@ const SCORER_SYSTEM =
 const ASSIGNER_SYSTEM =
   "You are NuggetizeAssignerLLM, an intelligent assistant that can label a list of atomic nuggets based on if they are captured by a given passage.";
 
-export function buildNuggetCreatePrompt(query: string, context: string, maxNuggets: number, initial: string[] = []): string {
+export function buildNuggetCreatePrompt(
+  query: string,
+  context: string,
+  maxNuggets: number,
+  initial: string[] = [],
+): string {
   return [
     `Update the list of atomic nuggets of information (1-12 words), if needed, so they best provide the information required for the query. Leverage only the initial list of nuggets (if exists) and the provided context (this is an iterative process). Return only the final list of all nuggets in a Pythonic list format (even if no updates). Make sure there is no redundant information. Ensure the updated nugget list has at most ${maxNuggets} nuggets (can be less), keeping only the most vital ones. Order them in decreasing order of importance. Prefer nuggets that provide more interesting information.`,
     "",
@@ -36,7 +41,10 @@ export function buildNuggetCreatePrompt(query: string, context: string, maxNugge
   ].join("\n");
 }
 
-export function buildNuggetScorePrompt(query: string, nuggets: string[]): string {
+export function buildNuggetScorePrompt(
+  query: string,
+  nuggets: string[],
+): string {
   return [
     `Based on the query, label each of the ${nuggets.length} nuggets either a vital or okay based on the following criteria. Vital nuggets represent concepts that must be present in a "good" answer; on the other hand, okay nuggets contribute worthwhile information about the target but are not essential. Return the list of labels in a Pythonic list format (type: List[str]). The list should be in the same order as the input nuggets. Make sure to provide a label for each nugget.`,
     "",
@@ -48,7 +56,11 @@ export function buildNuggetScorePrompt(query: string, nuggets: string[]): string
   ].join("\n");
 }
 
-export function buildNuggetAssignPrompt(query: string, context: string, nuggets: string[]): string {
+export function buildNuggetAssignPrompt(
+  query: string,
+  context: string,
+  nuggets: string[],
+): string {
   return [
     `Based on the query and passage, label each of the ${nuggets.length} nuggets either as support, partial_support, or not_support using the following criteria. A nugget that is fully captured in the passage should be labeled as support. A nugget that is partially captured in the passage should be labeled as partial_support. If the nugget is not captured at all, label it as not_support. Return the list of labels in a Pythonic list format (type: List[str]). The list should be in the same order as the input nuggets. Make sure to provide a label for each nugget.`,
     "",
@@ -63,7 +75,10 @@ export function buildNuggetAssignPrompt(query: string, context: string, nuggets:
 
 /** Tolerant port of RAGDoll's `parse_label_list`: pull the outermost [...] and read quoted or bare items. */
 export function parseStringList(text: string): string[] | null {
-  const cleaned = text.replace(/```python/g, "").replace(/```/g, "").trim();
+  const cleaned = text
+    .replace(/```python/g, "")
+    .replace(/```/g, "")
+    .trim();
   const open = cleaned.indexOf("[");
   const close = cleaned.lastIndexOf("]");
   if (open === -1 || close === -1 || close <= open) return null;
@@ -80,15 +95,27 @@ export function parseStringList(text: string): string[] | null {
       let buf = "";
       let closed = false;
       while (i < body.length) {
-        if (body[i] === "\\" && i + 1 < body.length) { buf += body[i + 1]; i += 2; continue; }
-        if (body[i] === quote) { i++; closed = true; break; }
-        buf += body[i]; i++;
+        if (body[i] === "\\" && i + 1 < body.length) {
+          buf += body[i + 1];
+          i += 2;
+          continue;
+        }
+        if (body[i] === quote) {
+          i++;
+          closed = true;
+          break;
+        }
+        buf += body[i];
+        i++;
       }
       if (!closed) return null;
       items.push(buf);
     } else {
       let buf = "";
-      while (i < body.length && body[i] !== ",") { buf += body[i]; i++; }
+      while (i < body.length && body[i] !== ",") {
+        buf += body[i];
+        i++;
+      }
       const trimmed = buf.trim();
       if (trimmed) items.push(trimmed);
     }
@@ -96,11 +123,25 @@ export function parseStringList(text: string): string[] | null {
   return items;
 }
 
-async function askForList(llm: LlmClient, system: string, user: string, maxTokens: number): Promise<string[] | null> {
+async function askForList(
+  llm: LlmClient,
+  system: string,
+  user: string,
+  maxTokens: number,
+): Promise<string[] | null> {
   try {
-    const r = await llm.generate({ messages: [{ role: "system", content: system }, { role: "user", content: user }], temperature: 0, maxTokens });
+    const r = await llm.generate({
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      temperature: 0,
+      maxTokens,
+    });
     return parseStringList(r.text);
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -114,19 +155,38 @@ export async function predictNuggets(
   topic: TopicIdentity,
   docs: { docid: string; text: string }[],
   aspects: string[],
-  opts: { maxNuggets: number; perAspect: number; contextDocs: number; contextChars: number },
+  opts: {
+    maxNuggets: number;
+    perAspect: number;
+    contextDocs: number;
+    contextChars: number;
+  },
 ): Promise<string[]> {
   const focuses = aspects.length > 0 ? aspects : [""];
   const seen = new Map<string, string>(); // normalised text -> first spelling kept
   for (const focus of focuses) {
-    const context = docs.slice(0, opts.contextDocs).map((d, i) => `[${i}] ${d.text.slice(0, opts.contextChars)}`).join("\n\n");
-    const query = focus ? `${topic.narrative}\n\nFocus only on this sub-question: ${focus}` : topic.narrative;
-    const list = await askForList(llm, CREATOR_SYSTEM, buildNuggetCreatePrompt(query, context, opts.perAspect), 2000);
+    const context = docs
+      .slice(0, opts.contextDocs)
+      .map((d, i) => `[${i}] ${d.text.slice(0, opts.contextChars)}`)
+      .join("\n\n");
+    const query = focus
+      ? `${topic.narrative}\n\nFocus only on this sub-question: ${focus}`
+      : topic.narrative;
+    const list = await askForList(
+      llm,
+      CREATOR_SYSTEM,
+      buildNuggetCreatePrompt(query, context, opts.perAspect),
+      2000,
+    );
     if (!list) continue; // a failed aspect just contributes nothing
     for (const raw of list) {
       const text = raw.trim();
       if (!text) continue;
-      const key = text.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+      const key = text
+        .toLowerCase()
+        .replace(/[^a-z0-9 ]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
       if (key && !seen.has(key)) seen.set(key, text);
     }
     if (seen.size >= opts.maxNuggets) break;
@@ -135,11 +195,22 @@ export async function predictNuggets(
 }
 
 /** Keep only the nuggets the scorer calls vital — the V/V_strict metrics ignore the rest. */
-export async function selectVitalNuggets(llm: LlmClient, topic: TopicIdentity, nuggets: string[]): Promise<string[]> {
+export async function selectVitalNuggets(
+  llm: LlmClient,
+  topic: TopicIdentity,
+  nuggets: string[],
+): Promise<string[]> {
   if (nuggets.length === 0) return [];
-  const labels = await askForList(llm, SCORER_SYSTEM, buildNuggetScorePrompt(topic.narrative, nuggets), 1200);
+  const labels = await askForList(
+    llm,
+    SCORER_SYSTEM,
+    buildNuggetScorePrompt(topic.narrative, nuggets),
+    1200,
+  );
   if (!labels || labels.length !== nuggets.length) return nuggets; // scorer unusable: treat all as vital
-  const vital = nuggets.filter((_, i) => labels[i].trim().toLowerCase().startsWith("vital"));
+  const vital = nuggets.filter((_, i) =>
+    labels[i].trim().toLowerCase().startsWith("vital"),
+  );
   return vital.length > 0 ? vital : nuggets;
 }
 
@@ -156,12 +227,18 @@ export async function assignNuggets(
   const out: NuggetAssignment[] = [];
   for (let start = 0; start < nuggets.length; start += CHUNK) {
     const chunk = nuggets.slice(start, start + CHUNK);
-    const labels = await askForList(llm, ASSIGNER_SYSTEM, buildNuggetAssignPrompt(topic.narrative, answerText, chunk), 1200);
+    const labels = await askForList(
+      llm,
+      ASSIGNER_SYSTEM,
+      buildNuggetAssignPrompt(topic.narrative, answerText, chunk),
+      1200,
+    );
     if (!labels || labels.length !== chunk.length) return null;
     for (const label of labels) {
       const low = label.trim().toLowerCase();
       if (low.includes("partial")) out.push("partial_support");
-      else if (low.includes("not") || low.includes("no_support")) out.push("not_support");
+      else if (low.includes("not") || low.includes("no_support"))
+        out.push("not_support");
       else if (low.includes("support")) out.push("support");
       else out.push("not_support");
     }
@@ -182,6 +259,8 @@ export async function findNuggetGaps(
 ): Promise<{ gaps: string[]; assignments: NuggetAssignment[] | null }> {
   const assignments = await assignNuggets(llm, topic, answerText, vitalNuggets);
   if (!assignments) return { gaps: [], assignments: null };
-  const gaps = vitalNuggets.filter((_, i) => assignments[i] !== "support").slice(0, maxGaps);
+  const gaps = vitalNuggets
+    .filter((_, i) => assignments[i] !== "support")
+    .slice(0, maxGaps);
   return { gaps, assignments };
 }

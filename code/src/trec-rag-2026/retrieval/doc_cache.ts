@@ -17,9 +17,7 @@ const ROOT = process.env.DOC_CACHE_DIR || join(".cache", "docs");
 const ENABLED = process.env.DOC_CACHE !== "0";
 
 function entryPath(index: string, docid: string): string {
-  const hash = createHash("sha1")
-    .update(`${index}\0${docid}`)
-    .digest("hex");
+  const hash = createHash("sha1").update(`${index}\0${docid}`).digest("hex");
   const safeIndex = index.replace(/[^A-Za-z0-9._-]/g, "_");
   return join(ROOT, safeIndex, hash.slice(0, 2), `${hash}.json`);
 }
@@ -39,11 +37,7 @@ export function readCache(index: string, docid: string): CachedDoc | null {
   }
 }
 
-export function writeCache(
-  index: string,
-  docid: string,
-  doc: CachedDoc,
-): void {
+export function writeCache(index: string, docid: string, doc: CachedDoc): void {
   if (!ENABLED) return;
   const path = entryPath(index, docid);
   try {

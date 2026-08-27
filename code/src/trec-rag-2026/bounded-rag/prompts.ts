@@ -1,4 +1,4 @@
-import { AGENTIC_RAG_BASELINE_PROMPT_VERSION, type TopicIdentity } from "./contracts";
+import { RAG_PROMPT_PROFILE, type TopicIdentity } from "../rag-core/contracts";
 
 export type EvidenceDocumentForPrompt = {
   docid: string;
@@ -27,8 +27,8 @@ export type AnswerGenerationPromptInput = {
 
 export function buildJudgePrompt(input: JudgePromptInput): string {
   return [
-    `Prompt version: ${AGENTIC_RAG_BASELINE_PROMPT_VERSION}`,
-    "You are an evidence sufficiency judge for a TREC RAG baseline.",
+    `Prompt version: ${RAG_PROMPT_PROFILE}`,
+    "You are an evidence sufficiency judge for a TREC RAG pipeline.",
     "Use only the provided topic and evidence documents. Do not use outside knowledge.",
     "Decide whether the current evidence is sufficient to answer all important aspects of the narrative.",
     "Do not write the final answer.",
@@ -45,7 +45,9 @@ export function buildJudgePrompt(input: JudgePromptInput): string {
   ].join("\n");
 }
 
-export function buildFollowupQueryPrompt(input: FollowupQueryPromptInput): string {
+export function buildFollowupQueryPrompt(
+  input: FollowupQueryPromptInput,
+): string {
   return [
     "Return exactly one strict JSON object and nothing else:",
     '{"subquery":"..."}',
@@ -57,9 +59,11 @@ export function buildFollowupQueryPrompt(input: FollowupQueryPromptInput): strin
   ].join("\n");
 }
 
-export function buildAnswerGenerationPrompt(input: AnswerGenerationPromptInput): string {
+export function buildAnswerGenerationPrompt(
+  input: AnswerGenerationPromptInput,
+): string {
   return [
-    `Prompt version: ${AGENTIC_RAG_BASELINE_PROMPT_VERSION}`,
+    `Prompt version: ${RAG_PROMPT_PROFILE}`,
     "You generate an evidence-grounded TREC RAG answer.",
     "Use only the provided evidence documents. Do not use outside knowledge.",
     "Break the answer into individual factual sentences.",
@@ -90,16 +94,21 @@ export type DenseAnswerPromptInput = AnswerGenerationPromptInput & {
 // (Crucible 0.599->0.717->0.812) and the strict-vital metric has no verbosity
 // penalty; GINGER's winning shape is short atomic entity-dense sentences
 // organized by facet.
-export function buildDenseAnswerGenerationPrompt(input: DenseAnswerPromptInput): string {
-  const checklistBlock = input.checklist && input.checklist.length > 0
-    ? [
-        "Organize the answer by these aspects of the topic; write roughly 80-120 words for EACH aspect (a few sentences each), in this order:",
-        ...input.checklist.map((c, i) => `${i + 1}. ${c.replace(/ \(vital\)$/, "")}`),
-        "",
-      ]
-    : [];
+export function buildDenseAnswerGenerationPrompt(
+  input: DenseAnswerPromptInput,
+): string {
+  const checklistBlock =
+    input.checklist && input.checklist.length > 0
+      ? [
+          "Organize the answer by these aspects of the topic; write roughly 80-120 words for EACH aspect (a few sentences each), in this order:",
+          ...input.checklist.map(
+            (c, i) => `${i + 1}. ${c.replace(/ \(vital\)$/, "")}`,
+          ),
+          "",
+        ]
+      : [];
   return [
-    `Prompt version: ${AGENTIC_RAG_BASELINE_PROMPT_VERSION}-dense`,
+    `Prompt version: ${RAG_PROMPT_PROFILE}-dense`,
     "You generate an evidence-grounded TREC RAG answer.",
     "Use only the provided evidence documents. Do not use outside knowledge.",
     "",
@@ -114,7 +123,9 @@ export function buildDenseAnswerGenerationPrompt(input: DenseAnswerPromptInput):
     "Good: 'Persistent gender and racial pay gaps affect athlete compensation, and business interests shape both media-rights deals and team management.'",
     "Bad: 'Athlete compensation is a controversial and important topic.'",
     "No introduction, no conclusion, no hedging, no restating the question - only supported facts.",
-    ...(process.env.DENSE_DRAFT_HINT ? ["", `FACT SELECTION EMPHASIS: ${process.env.DENSE_DRAFT_HINT}`] : []),
+    ...(process.env.DENSE_DRAFT_HINT
+      ? ["", `FACT SELECTION EMPHASIS: ${process.env.DENSE_DRAFT_HINT}`]
+      : []),
     "",
     ...checklistBlock,
     "Citations are zero-indexed positions into the references array, not docids.",
@@ -132,14 +143,20 @@ export function buildDenseAnswerGenerationPrompt(input: DenseAnswerPromptInput):
   ].join("\n");
 }
 
-export function buildCompactAnswerGenerationPrompt(input: AnswerGenerationPromptInput): string {
+export function buildCompactAnswerGenerationPrompt(
+  input: AnswerGenerationPromptInput,
+): string {
   return [
     "Return only this JSON shape, with no Markdown or explanation:",
     '{"references":["shard_00000_00000"],"answer":[{"text":"Supported sentence.","citations":[0]}]}',
     "Use only the provided docs. Every sentence needs citations. Citation numbers are references array indexes. Use only cited docids in references.",
     formatTopic(input.topic),
     "Docs:",
-    formatDocuments(input.documents.slice(0, 5).map((doc) => ({ ...doc, text: doc.text.slice(0, 800) }))),
+    formatDocuments(
+      input.documents
+        .slice(0, 5)
+        .map((doc) => ({ ...doc, text: doc.text.slice(0, 800) })),
+    ),
   ].join("\n");
 }
 
@@ -160,15 +177,23 @@ export type VerifyRevisePromptInput = {
 // over-extended sentences. Motivated by measured citation quality: only
 // 24-35% of sentences are fully supported; most are partially supported
 // (over-extended relative to what the citation actually says).
-export function buildVerifyRevisePrompt(input: VerifyRevisePromptInput): string {
-  const sentenceBlocks = input.sentences.map((sentence, index) => [
-    `Sentence ${index}: ${sentence.text}`,
-    `Citations: ${JSON.stringify(sentence.citations)}`,
-    "Cited evidence excerpts:",
-    sentence.evidence.length === 0
-      ? "(none available)"
-      : sentence.evidence.map((e) => `- [${e.docid}] ${e.excerpt}`).join("\n"),
-  ].join("\n")).join("\n\n");
+export function buildVerifyRevisePrompt(
+  input: VerifyRevisePromptInput,
+): string {
+  const sentenceBlocks = input.sentences
+    .map((sentence, index) =>
+      [
+        `Sentence ${index}: ${sentence.text}`,
+        `Citations: ${JSON.stringify(sentence.citations)}`,
+        "Cited evidence excerpts:",
+        sentence.evidence.length === 0
+          ? "(none available)"
+          : sentence.evidence
+              .map((e) => `- [${e.docid}] ${e.excerpt}`)
+              .join("\n"),
+      ].join("\n"),
+    )
+    .join("\n\n");
   return [
     "You are revising a cited RAG answer so that every sentence is fully supported by its cited evidence.",
     "For each sentence below, compare the sentence against its cited evidence excerpts and act:",
@@ -205,11 +230,13 @@ function formatTopic(topic: TopicIdentity): string {
 function formatDocuments(documents: EvidenceDocumentForPrompt[]): string {
   if (documents.length === 0) return "(none)";
   return documents
-    .map((document, index) => [
-      `Document ${index}:`,
-      `docid: ${document.docid}`,
-      "text:",
-      document.text,
-    ].join("\n"))
+    .map((document, index) =>
+      [
+        `Document ${index}:`,
+        `docid: ${document.docid}`,
+        "text:",
+        document.text,
+      ].join("\n"),
+    )
     .join("\n\n");
 }

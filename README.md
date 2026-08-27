@@ -16,7 +16,7 @@ The repository has one TypeScript package and one Python sidecar:
   evidence-grounded generation controller.
 - `code/src/trec-rag-2026/bounded-rag/` implements the bounded 12/10/60/6 RAG
   controller, including per-round top-300 reranking and verify/revise.
-- `code/src/llm/`, `evaluation/`, and `agentic-rag-baseline/` are shared by
+- `code/src/llm/`, `evaluation/`, and `rag-core/` are shared by
   both controllers; there is no duplicated RAG package.
 - `sidecar/` provides local reranking, passage selection, sentence evidence,
   and the Codex CLI bridge used by the Retrieval policy.
@@ -25,8 +25,8 @@ The repository has one TypeScript package and one Python sidecar:
 
 ## Requirements
 
-- Node.js 20.9 or newer
-- Python 3.11 or newer
+- Node.js 22 or newer
+- Python 3.12
 - A CUDA-capable GPU is recommended for neural reranking
 - Access to the ClimbMix/Pyserini service
 - NCHC credentials for the base Retrieval model
@@ -47,7 +47,7 @@ Create a Python environment and install the pinned dependencies:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r code/requirements-deepce.txt
-pip install -r sidecar/requirements.txt
+pip install -r sidecar/requirements.lock
 ```
 
 ### Codex CLI setup
@@ -90,7 +90,8 @@ The launch scripts load these files automatically. `SIDECAR_URL` defaults to
 Competition data is not redistributed. Provide:
 
 - topics TSV with `topic_id<TAB>narrative` on each line;
-- the organizer qrels directory used by the local metric reporter;
+- a directory containing one or more `*.qrels` files used by the local metric
+  reporter (filenames are discovered automatically);
 - checklist JSONL with one `{"qid":"...","items":[...]}` object per line.
 
 Small fictional examples are available in `examples/`.
@@ -130,7 +131,7 @@ npm run run:retrieval -- \
 ```
 
 The wrapper loads `code/.env.local`. The selected policy is defined once in
-`code/config/final_pipeline.ts` and does not import historical version files.
+`code/config/final_pipeline.ts` and does not import development-only wrappers.
 
 Run deep-tail reranking and serialize the final Retrieval files:
 
@@ -138,6 +139,7 @@ Run deep-tail reranking and serialize the final Retrieval files:
 source ../.venv/bin/activate
 python tools/deep_ce_rerank.py out/final-retrieval \
   --variant 'RRF 1:1' \
+  --device auto \
   --out out/final-retrieval/deepce
 RUN_DIR="$PWD/out/final-retrieval" bash scripts/run_final_retrieval.sh
 ```
@@ -167,10 +169,11 @@ cd code
 npm run check
 ```
 
-The smoke test executes one complete bounded-RAG topic against deterministic
-mock Pyserini and OpenAI responses; it requires no credentials or network.
-GitHub Actions runs the same checks, a production dependency audit, shell
-syntax checks, and Python compilation on every push and pull request.
+The smoke tests execute one complete bounded-RAG topic and one final-Retrieval
+topic against deterministic mock services; they require no credentials or
+network. GitHub Actions runs the same checks, a production dependency audit,
+shell syntax checks, Python compilation, a locked sidecar installation, and
+sidecar runtime tests on every push and pull request.
 
 Validate generated Retrieval and RAG files together:
 
@@ -181,8 +184,9 @@ code/scripts/validate_submission.sh \
 
 ## Reproducibility scope
 
-Node dependencies are locked by `package-lock.json`; Python dependencies are
-version-pinned. Model weights are downloaded from their upstream registries
+Node dependencies are locked by `package-lock.json`; sidecar dependencies are
+fully resolved in `sidecar/requirements.lock`, while the platform-sensitive
+deep-reranker dependencies are directly version-pinned. Model weights are downloaded from their upstream registries
 and competition services require separate authorization. Generated runs,
 official inputs, model caches, and intermediate outputs remain untracked.
 
