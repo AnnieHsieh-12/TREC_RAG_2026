@@ -2,28 +2,40 @@
 
 [![CI](https://github.com/AnnieHsieh-12/TREC_RAG_2026/actions/workflows/ci.yml/badge.svg)](https://github.com/AnnieHsieh-12/TREC_RAG_2026/actions/workflows/ci.yml)
 
-This repository is a source-only release of CFDA's final Retrieval and
-Retrieval-Augmented Generation (RAG) pipelines for the TREC RAG 2026 track.
-It contains the selected final policy, runtime entry points, deterministic
-post-processing, output validation, and offline smoke tests.
+This repository presents CFDA's final system for the TREC RAG 2026 track. It
+combines multi-route retrieval, neural reranking, adaptive evidence
+acquisition, and citation-grounded answer generation.
 
-Competition topics, qrels, the frozen checklist, generated answers, official
-submission files, caches, traces, evaluation results, past experiments, and
-the technical report are intentionally not redistributed.
+The system is designed around a simple principle: retrieve broadly, spend
+additional search only where the evidence is incomplete, and validate every
+answer before serialization. The repository focuses on the final competition
+pipeline and excludes development experiments and generated artifacts.
 
-## Final system at a glance
+## System overview
 
-The release contains two related but independently submitted pipelines:
+The system contains two related pipelines:
 
-| Pipeline | Purpose | Final public run |
+| Pipeline | Purpose | Output |
 | --- | --- | --- |
-| Retrieval | Produce a variable-depth ranked document list for every topic | `cfda-vfs-unc`, `cfda-vfs-deep` |
-| Bounded RAG | Retrieve evidence, decide when it is sufficient, and generate a cited answer | `cfda-w5c` |
+| Retrieval | Produce a variable-depth document ranking for each topic | Six-column TREC run |
+| Bounded RAG | Acquire sufficient evidence and generate a grounded answer | TREC RAG JSONL |
 
-The TypeScript runners control the pipelines. A local Python sidecar provides
-neural reranking, passage selection, and sentence-level evidence retrieval.
-The official generation calls use the OpenAI API; the sidecar's Codex CLI
-bridge is an optional backend for non-official reruns only.
+TypeScript coordinates retrieval and generation, while a local Python service
+handles neural reranking, passage selection, and sentence-level evidence
+matching. The final generation path uses the OpenAI API.
+
+### Key design choices
+
+- **Adaptive retrieval:** an evidence-sufficiency decision determines whether
+  the system stops or searches again.
+- **Query diversity with drift control:** the original narrative, Query2Doc,
+  and validated follow-up queries contribute through weighted RRF.
+- **Protected ranking head:** later facet expansion and deep reranking improve
+  coverage without destabilizing the highest-ranked documents.
+- **Bounded agent loop:** the RAG pipeline has explicit limits on rounds and
+  documents read, making its behavior auditable and cost-controlled.
+- **Grounded generation:** answer revision and citation ordering operate on
+  retrieved evidence before strict output validation.
 
 ## Retrieval pipeline
 
@@ -50,9 +62,8 @@ For each narrative, the Retrieval pipeline:
 8. Computes each topic's output depth from the pre-deep scores (`tau=0.20`) and
    writes a six-column TREC run.
 
-The complete selected Retrieval policy is flattened in
-[`code/config/final_pipeline.ts`](code/config/final_pipeline.ts). It does not
-import the historical `V0/V1/V2/VF/VFs` experiment wrappers.
+The selected Retrieval policy is defined in
+[`code/config/final_pipeline.ts`](code/config/final_pipeline.ts).
 
 ## Bounded RAG pipeline
 
@@ -73,12 +84,8 @@ For each narrative, the bounded RAG pipeline:
 7. Trims to 1,020 words, verifies or weakens unsupported claims, trims again,
    orders citations by support strength, and validates the JSON structure. The
    1,020-word internal cap leaves headroom below the organizer limit of 1,024.
-8. Replays the frozen official heading repair only when the complete raw-file
-   hash matches the official W5c runtime, applies the registered team/run IDs,
-   and runs a final format and topic-completeness gate.
-
-New RAG runs do not receive heuristic heading rewriting: when the complete
-frozen input hash does not match, the repair stage is a pass-through.
+8. Applies deterministic finalization and checks formatting, identifiers, and
+   topic completeness before writing the submission file.
 
 ## Repository layout
 
@@ -106,9 +113,6 @@ TREC_RAG_2026/
     └── README.md                   endpoint and configuration details
 ```
 
-There is one canonical TypeScript source tree under `code/src`; no duplicated
-`code/rag/src` package is required or tracked.
-
 ## Requirements
 
 - Node.js 22 or newer
@@ -118,8 +122,7 @@ There is one canonical TypeScript source tree under `code/src`; no duplicated
 - An OpenAI API key for the final Retrieval query/writer roles and bounded RAG
 - A CUDA-capable GPU is recommended for neural reranking
 
-The competition services, model weights, and inputs require separate access
-and are not included in this repository.
+Competition services, model weights, and inputs require separate access.
 
 ## Installation
 
@@ -161,11 +164,11 @@ Configure:
 `SIDECAR_URL` defaults to `http://127.0.0.1:8765`. The server port can be
 changed with `SIDECAR_PORT`; use matching values when changing it.
 
-### Optional Codex CLI backend
+### Optional local Codex backend
 
-The official runs used the OpenAI API, not the Codex bridge. To use Codex CLI
-as an alternative backend for a non-official rerun, authenticate it on the
-machine running the sidecar:
+The Python service also includes an optional Codex CLI adapter for local
+experimentation. It is not used by the final pipeline. To enable it,
+authenticate Codex on the machine running the service:
 
 ```bash
 npm install --global @openai/codex
@@ -178,7 +181,8 @@ is also available through `codex login --with-api-key`.
 
 ## Input files
 
-Competition data is not redistributed. Three inputs are expected.
+Three inputs are expected. Small fictional examples are included, while the
+competition data itself is not redistributed.
 
 ### Topics TSV
 
@@ -217,10 +221,11 @@ python code/tools/build_checklist.py \
   --output /path/to/checklist.jsonl
 ```
 
-## Start the sidecar
+## Start the local neural service
 
-The sidecar is required by the final bounded RAG pipeline. Start it in a
-separate terminal from the repository root:
+The bounded RAG pipeline calls a small local Python service (the `sidecar`) for
+GPU-backed reranking and evidence processing. Start it in a separate terminal
+from the repository root:
 
 ```bash
 source .venv/bin/activate
@@ -245,9 +250,9 @@ The `/llm` Codex bridge is optional and is not selected by the final scripts.
 ```bash
 cd code
 npm run run:retrieval -- \
-  --run-id VFs-official119 \
-  --team-id pi-serini \
-  --output-dir out/VFs-official119 \
+  --run-id cfda-retrieval \
+  --team-id cfda \
+  --output-dir out/cfda-retrieval \
   --topics /path/to/topics.tsv \
   --qrels-dir /path/to/qrels
 ```
@@ -259,25 +264,25 @@ run must not proceed to submission building.
 The main candidate pool is written to:
 
 ```text
-code/out/VFs-official119/candidate_pool_top5000.trec
+code/out/cfda-retrieval/candidate_pool_top5000.trec
 ```
 
 ### 2. Run deep-tail reranking
 
 ```bash
 source ../.venv/bin/activate
-python tools/deep_ce_rerank.py out/VFs-official119 \
+python tools/deep_ce_rerank.py out/cfda-retrieval \
   --head 100 \
   --depth 3000 \
   --variant 'RRF 1:1' \
   --device auto \
-  --out out/VFs-official119/deepce
+  --out out/cfda-retrieval/deepce
 ```
 
 ### 3. Build the two Retrieval outputs
 
 ```bash
-RUN_DIR="$PWD/out/VFs-official119" \
+RUN_DIR="$PWD/out/cfda-retrieval" \
 bash scripts/build_retrieval_submissions.sh
 ```
 
@@ -298,6 +303,8 @@ TOPICS=/path/to/topics.tsv \
 QRELS_DIR=/path/to/qrels \
 CHECKLIST=/path/to/checklist.jsonl \
 SIDECAR_URLS=http://127.0.0.1:8765 \
+RUN_ID=cfda-w5c \
+TEAM_ID=cfda \
 npm run run:rag
 ```
 
@@ -321,31 +328,8 @@ Optional environment variables:
 | `SHARDS` | Number of parallel topic shards; default `4` |
 | `SIDECAR_URLS` | Comma-separated sidecar URLs |
 | `PYSERINI_TOKENS` | Comma-separated tokens assigned across shards |
-| `RUN_ID`, `TEAM_ID` | Raw runtime identities |
+| `RUN_ID`, `TEAM_ID` | Run and team identifiers written to generated records |
 | `PYTHON` | Python executable; default `python3` |
-
-## Runtime and submission identities
-
-The historical raw runtime values are retained to reproduce the frozen
-execution artifacts:
-
-```text
-Retrieval raw run: VFs-official119
-RAG raw run:       W5c-official119
-Raw team ID:       pi-serini
-```
-
-These are provenance values, not the final public submission identities. The
-submission builders emit:
-
-```text
-Retrieval run tags: cfda-vfs-unc, cfda-vfs-deep
-RAG team ID:       2026 cfda rag
-RAG run ID:        cfda-w5c
-```
-
-For Retrieval, the six-column TREC output contains the final run tag rather
-than a separate team-ID field.
 
 ## Validation and tests
 
@@ -377,7 +361,7 @@ it:
 code/scripts/check_no_secret_leak.sh /path/to/output-directory
 ```
 
-## Reproducibility scope
+## Reproducibility
 
 - Node dependencies are locked by `code/package-lock.json`.
 - Sidecar dependencies are fully resolved in `sidecar/requirements.lock`.
@@ -386,14 +370,8 @@ code/scripts/check_no_secret_leak.sh /path/to/output-directory
 - Competition services and inputs require separate authorization.
 - Generated outputs, caches, traces, and intermediate pools remain untracked.
 
-The frozen official submissions are not stored in this repository. Their
-SHA-256 checksums are provided for verification:
-
-| Run | SHA-256 |
-| --- | --- |
-| `cfda-vfs-unc` | `376fb9ef131d9317571933766fc98fdace7223bab6051860b1f332e7d4e56cae` |
-| `cfda-vfs-deep` | `4b13a3291c82ae49e9b5212f7f1c1261ce4cee6ee17e3d6a00716313fa795351` |
-| `cfda-w5c` | `87dbe373dbb8b95e5a43f7041c998ec7b26cdc34adf9e455f14477ed421d0ec8` |
+Official submission files and generated outputs are not redistributed. This
+repository provides the final pipeline implementation and validation tools.
 
 ## License
 
