@@ -611,6 +611,10 @@ export async function runFinalRetrievalPipeline(o: IterativeOptions) {
     join(out, "provenance.md"),
     `# Final Retrieval pipeline\n\nNo RAGDoll. No qrels query selection. No source_run_dir.\n`,
   );
+  if (!validation.ok)
+    throw new Error(
+      `Retrieval run incomplete: produced ${validation.output_count}/${validation.expected_count} topics; see validation.json and failed_topics.json`,
+    );
   return { outputDir: out, validation };
 }
 async function spliceFacetPool(

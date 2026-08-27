@@ -123,6 +123,44 @@ class OfficialFormatCheckTests(unittest.TestCase):
             )
             self.assertNotEqual(completed.returncode, 0)
 
+    def test_rag_only_gate_rejects_missing_topics(self):
+        code_root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            topics = tmp_path / "topics.tsv"
+            rag = tmp_path / "rag.jsonl"
+            topics.write_text(
+                "1\tFirst narrative\n2\tSecond narrative\n", encoding="utf-8"
+            )
+            rag.write_text(
+                json.dumps({
+                    "metadata": {
+                        "team_id": "cfda",
+                        "run_id": "fixture",
+                        "narrative_id": "1",
+                        "narrative": "First narrative",
+                        "run_desc": "fixture",
+                    },
+                    "references": [],
+                    "answer": [{"text": "Answer.", "citations": []}],
+                }) + "\n",
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [
+                    "python3",
+                    str(MODULE_PATH),
+                    "--rag-only",
+                    str(rag),
+                    str(topics),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("missing 1 topics", completed.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

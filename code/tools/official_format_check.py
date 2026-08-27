@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Validate Retrieval and RAG outputs against organizer format rules.
 
-Usage: ``python3 tools/official_format_check.py retrieval.tsv rag.jsonl topics.tsv``
+Usage:
+  ``python3 tools/official_format_check.py retrieval.tsv rag.jsonl topics.tsv``
+  ``python3 tools/official_format_check.py --rag-only rag.jsonl topics.tsv``
 """
 import json
 from pathlib import Path
@@ -160,31 +162,51 @@ def check_rag(path, topics):
     missing = set(topics) - seen
     if missing:
         errs.append(f"missing {len(missing)} topics: {sorted(missing)[:5]} ...")
+    extra = seen - set(topics)
+    if extra:
+        errs.append(f"topic IDs absent from topics file: {sorted(extra)[:5]}")
     return errs, warns
 
 
-def main():
-    r_path, rag_path, topics_path = sys.argv[1:4]
+def load_topics(topics_path):
     topics = {}
     for line in Path(topics_path).read_text(encoding="utf-8").splitlines():
         if line.strip():
             qid, narrative = line.split("\t", 1)
             topics[qid] = narrative
+    return topics
 
-    bad = 0
-    for name, fn, path in (("R", check_r, r_path), ("RAG", check_rag, rag_path)):
-        print(f"== {name}: {path}")
-        errs, warns = fn(path, set(topics) if name == "R" else topics)
-        for e in errs[:15]:
-            print("  ✗", e)
-        for w in warns:
-            print("  ⚠", w)
-        more = len(errs) - 15
-        if more > 0:
-            print(f"  ... {more} additional errors")
-        status = "compliant" if not errs else f"{len(errs)} violations"
-        print(f"  -> {status}; {len(warns)} warnings")
-        bad += len(errs)
+
+def report(name, fn, path, expected):
+    print(f"== {name}: {path}")
+    errs, warns = fn(path, expected)
+    for error in errs[:15]:
+        print("  ✗", error)
+    for warning in warns:
+        print("  ⚠", warning)
+    more = len(errs) - 15
+    if more > 0:
+        print(f"  ... {more} additional errors")
+    status = "compliant" if not errs else f"{len(errs)} violations"
+    print(f"  -> {status}; {len(warns)} warnings")
+    return len(errs)
+
+
+def main():
+    if len(sys.argv) == 4 and sys.argv[1] == "--rag-only":
+        rag_path, topics_path = sys.argv[2:4]
+        topics = load_topics(topics_path)
+        sys.exit(1 if report("RAG", check_rag, rag_path, topics) else 0)
+    if len(sys.argv) != 4:
+        raise SystemExit(
+            "Usage: official_format_check.py retrieval.tsv rag.jsonl topics.tsv\n"
+            "   or: official_format_check.py --rag-only rag.jsonl topics.tsv"
+        )
+
+    r_path, rag_path, topics_path = sys.argv[1:4]
+    topics = load_topics(topics_path)
+    bad = report("R", check_r, r_path, set(topics))
+    bad += report("RAG", check_rag, rag_path, topics)
     sys.exit(1 if bad else 0)
 
 

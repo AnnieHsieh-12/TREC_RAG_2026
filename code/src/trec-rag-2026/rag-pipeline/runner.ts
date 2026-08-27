@@ -291,8 +291,12 @@ export async function runFinalRagPipeline(o: IterativeOptions) {
   writeJson(join(out, "run-summary.internal.json"), summary);
   writeFileSync(
     join(out, "provenance.md"),
-    `# Iterative agentic RAG\n\nNo RAGDoll. No qrels query selection. No source_run_dir.\n`,
+    `# Final RAG pipeline\n\nNo RAGDoll. No qrels query selection. No source_run_dir.\n`,
   );
+  if (!validation.ok)
+    throw new Error(
+      `RAG run incomplete: produced ${validation.output_count}/${validation.expected_count} topics; see validation.json and failed_topics.json`,
+    );
   return { outputDir: out, validation };
 }
 async function processTopic(a: {

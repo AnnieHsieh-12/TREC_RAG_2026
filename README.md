@@ -167,6 +167,10 @@ launcher loads `code/.env.local`, uses the OpenAI API for generation, and uses
 the sidecar only for local reranking, passage selection, and evidence
 verification. It then replays the documented W5c heading repair and finalizes
 the registered submission identity as team `2026 cfda rag`, run `cfda-w5c`.
+The repair activates only when the complete raw file hash matches the frozen
+official run, then matches the seven headings by topic, original position, and
+text hash; new runs pass through unchanged. A final RAG-only format and
+topic-completeness gate runs after all post-processing.
 
 ## Validation
 

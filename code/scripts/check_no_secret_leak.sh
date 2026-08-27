@@ -25,7 +25,7 @@ if [[ -f "$ROOT_DIR/.env.local" ]]; then
 fi
 
 secrets=()
-for var in NCHC_API_KEY PYSERINI_API_TOKEN; do
+for var in NCHC_API_KEY PYSERINI_API_TOKEN OPENAI_API_KEY; do
   val="${!var:-}"
   if [[ -n "$val" && "$val" != replace_* && "$val" != "replace_if_required" ]]; then
     secrets+=("$var=$val")
@@ -54,4 +54,4 @@ if [[ $status -ne 0 ]]; then
   exit 1
 fi
 
-echo "No actual NCHC_API_KEY or PYSERINI_API_TOKEN values found in $TARGET_DIR"
+echo "No configured API key or token values found in $TARGET_DIR"

@@ -108,4 +108,6 @@ REPAIRED_RAG="$OUT/.w5c-heading-repaired.jsonl"
   --input "$RAW_RAG" --output "$REPAIRED_RAG"
 "$PYTHON" tools/finalize_submissions.py \
   --rag "$REPAIRED_RAG" --rag-tag cfda-w5c --outdir "$SUBMISSION_OUT"
-echo "Final RAG submission: $SUBMISSION_OUT/rag_output_trec_rag_2026.jsonl"
+FINAL_RAG="$SUBMISSION_OUT/rag_output_trec_rag_2026.jsonl"
+"$PYTHON" tools/official_format_check.py --rag-only "$FINAL_RAG" "$TOPICS"
+echo "Final RAG submission: $FINAL_RAG"

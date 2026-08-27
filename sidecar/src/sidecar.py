@@ -21,6 +21,7 @@ Run: .venv/bin/python3 -m src.sidecar  (listens on 127.0.0.1:8765)
 import json
 import os
 import sys
+import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -120,10 +121,23 @@ def get_doc_text(docid, qid=None):
             text = parsed.get("text", text)
     except Exception:
         pass
-    tmp = fpath + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(text)
-    os.replace(tmp, fpath)
+    tmp = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=os.path.dirname(fpath),
+            prefix=f".{os.path.basename(fpath)}.",
+            suffix=".tmp",
+            delete=False,
+        ) as cache_file:
+            tmp = cache_file.name
+            cache_file.write(text)
+        os.replace(tmp, fpath)
+        tmp = None
+    finally:
+        if tmp and os.path.exists(tmp):
+            os.unlink(tmp)
     return text
 
 
