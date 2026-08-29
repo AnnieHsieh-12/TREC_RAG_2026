@@ -20,9 +20,9 @@ type OpenAiChatCompletionsResponse = {
   usage?: unknown;
 };
 
-// Reasoning-tier OpenAI models (gpt-5.6-terra) reject an explicit temperature
-// and need reasoning_effort:"none" for plain chat-completions usage — the
-// same parameter set already validated in the Python v7-terra run.
+// Reasoning-tier OpenAI models reject an explicit temperature and use
+// reasoning_effort:"none" for plain chat-completions usage. General chat
+// models such as gpt-4o-mini reject reasoning_effort entirely.
 export class OpenAiLlmClient implements LlmClient {
   readonly provider = "openai_llm" as const;
   readonly model: string;
@@ -59,7 +59,9 @@ export class OpenAiLlmClient implements LlmClient {
             content: m.content,
           })),
           max_completion_tokens: options.maxTokens,
-          reasoning_effort: "none",
+          ...(usesReasoningEffort(this.model)
+            ? { reasoning_effort: "none" }
+            : {}),
         }),
         signal: options.signal,
       });
@@ -102,6 +104,10 @@ export class OpenAiLlmClient implements LlmClient {
         : {}),
     };
   }
+}
+
+function usesReasoningEffort(model: string): boolean {
+  return /^(?:gpt-5(?:[.-]|$)|o[1-9](?:[.-]|$))/i.test(model);
 }
 
 function extractAssistantText(value: OpenAiChatCompletionsResponse): string {
