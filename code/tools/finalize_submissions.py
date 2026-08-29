@@ -5,14 +5,12 @@ import argparse
 import json
 from pathlib import Path
 
-TEAM_ID = "2026 cfda rag"
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--retrieval", type=Path)
     parser.add_argument("--rag", type=Path)
     parser.add_argument("--retrieval-tag", default="cfda-vfs-deep")
+    parser.add_argument("--team-id", default="cfda")
     parser.add_argument("--rag-tag", default="cfda-w5c")
     parser.add_argument("--outdir", required=True, type=Path)
     args = parser.parse_args()
@@ -42,12 +40,12 @@ def main() -> None:
                 if not line.strip():
                     continue
                 record = json.loads(line)
-                record["metadata"]["team_id"] = TEAM_ID
+                record["metadata"]["team_id"] = args.team_id
                 record["metadata"]["run_id"] = args.rag_tag
                 destination.write(json.dumps(record, ensure_ascii=False) + "\n")
                 topics += 1
         print(
-            f"RAG: {output} ({topics} topics, team_id={TEAM_ID!r}, "
+            f"RAG: {output} ({topics} topics, team_id={args.team_id!r}, "
             f"run_id={args.rag_tag})"
         )
 

@@ -23,3 +23,17 @@ export function describeQrelsFiles(paths: string[]) {
     sha256: createHash("sha256").update(readFileSync(path)).digest("hex"),
   }));
 }
+
+/** Select judged input topics and reject an unrelated qrels file. */
+export function requireQrelsTopicOverlap(
+  qrels: ReadonlyMap<string, unknown>,
+  topicIds: string[],
+  source: string,
+): string[] {
+  const matching = topicIds.filter((topicId) => qrels.has(topicId));
+  if (matching.length === 0)
+    throw new Error(
+      `Qrels file ${source} has no topic IDs in common with the topics input`,
+    );
+  return matching;
+}

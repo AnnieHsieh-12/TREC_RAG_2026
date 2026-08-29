@@ -39,6 +39,8 @@ matching. The final generation path uses the OpenAI API.
 
 ## Quickstart: offline validation
 
+Prerequisites: Node.js 22 or newer, Python 3.12, and npm.
+
 The public code paths can be checked without API keys, a GPU, model downloads,
 or competition data:
 

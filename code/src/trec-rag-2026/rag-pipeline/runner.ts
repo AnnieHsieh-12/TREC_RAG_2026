@@ -46,6 +46,7 @@ import {
 import {
   describeQrelsFiles,
   discoverQrelsFiles,
+  requireQrelsTopicOverlap,
 } from "../../evaluation/qrels_files";
 
 type Topic = { qid: string; title: string; narrative: string };
@@ -1829,35 +1830,44 @@ function parseQrels(path: string, qids: string[]): Qrels {
 }
 function evalAll(paths: string[], qids: string[], rankings: Rankings) {
   const rows = paths.map((p) => {
-    const q = parseQrels(p, qids),
-      res = evaluateRankings(
-        q,
-        rankings,
-        qids,
-        { recallCutoffs: CUTS, ndcgCutoffs: NDCG, mrrCutoffs: [1000] },
-        {
-          recallRelevantThreshold: 2,
-          binaryRelevantThreshold: 2,
-          ndcgGainMode: "linear",
-        },
-      );
-    const metrics = {
-      ndcg_10: res.ndcgByCutoff.get(10) ?? 0,
-      ndcg_20: res.ndcgByCutoff.get(20) ?? 0,
-      ndcg_100: res.ndcgByCutoff.get(100) ?? 0,
-      ndcg_1000: res.ndcgByCutoff.get(1000) ?? 0,
-      recall_20: res.macroRecallByCutoff.get(20) ?? 0,
-      recall_100: res.macroRecallByCutoff.get(100) ?? 0,
-      recall_500: res.macroRecallByCutoff.get(500) ?? 0,
-      recall_1000: res.macroRecallByCutoff.get(1000) ?? 0,
-      map: res.map,
-      mrr: res.mrrByCutoff.get(1000) ?? 0,
-    };
+    const q = parseQrels(p, qids);
+    const evaluatedQids = requireQrelsTopicOverlap(q, qids, p);
+    const res = evaluateRankings(
+      q,
+      rankings,
+      evaluatedQids,
+      { recallCutoffs: CUTS, ndcgCutoffs: NDCG, mrrCutoffs: [1000] },
+      {
+        recallRelevantThreshold: 2,
+        binaryRelevantThreshold: 2,
+        ndcgGainMode: "linear",
+      },
+    );
+    const metrics = evaluationMetrics(res);
+    const perTopic = Object.fromEntries(
+      evaluatedQids.map((qid) => [
+        qid,
+        evaluationMetrics(
+          evaluateRankings(
+            q,
+            rankings,
+            [qid],
+            { recallCutoffs: CUTS, ndcgCutoffs: NDCG, mrrCutoffs: [1000] },
+            {
+              recallRelevantThreshold: 2,
+              binaryRelevantThreshold: 2,
+              ndcgGainMode: "linear",
+            },
+          ),
+        ),
+      ]),
+    );
     return {
       qrels_path: p,
       qrels_filename: basename(p),
+      topic_count: evaluatedQids.length,
       metrics,
-      per_topic: {},
+      per_topic: perTopic,
     };
   });
   const keys = Object.keys(rows[0].metrics);
@@ -1872,7 +1882,23 @@ function evalAll(paths: string[], qids: string[], rankings: Rankings) {
         ]),
       ),
     },
-    perTopic: {},
+    perTopic: Object.fromEntries(
+      rows.map((row) => [row.qrels_filename, row.per_topic]),
+    ),
+  };
+}
+function evaluationMetrics(res: ReturnType<typeof evaluateRankings>) {
+  return {
+    ndcg_10: res.ndcgByCutoff.get(10) ?? 0,
+    ndcg_20: res.ndcgByCutoff.get(20) ?? 0,
+    ndcg_100: res.ndcgByCutoff.get(100) ?? 0,
+    ndcg_1000: res.ndcgByCutoff.get(1000) ?? 0,
+    recall_20: res.macroRecallByCutoff.get(20) ?? 0,
+    recall_100: res.macroRecallByCutoff.get(100) ?? 0,
+    recall_500: res.macroRecallByCutoff.get(500) ?? 0,
+    recall_1000: res.macroRecallByCutoff.get(1000) ?? 0,
+    map: res.map,
+    mrr: res.mrrByCutoff.get(1000) ?? 0,
   };
 }
 function writeJson(p: string, v: any) {

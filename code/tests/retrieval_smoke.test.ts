@@ -99,6 +99,10 @@ test("final Retrieval orchestration completes one mocked topic", async () => {
       readFileSync(join(output, "metrics.json"), "utf8"),
     );
     assert.equal(metrics.qrels[0].qrels_filename, "fixture.qrels");
+    const perTopic = JSON.parse(
+      readFileSync(join(output, "per_topic_metrics.json"), "utf8"),
+    );
+    assert.equal(perTopic["fixture.qrels"]["1"].ndcg_10, 1);
     const provenance = JSON.parse(
       readFileSync(join(output, "qrels_metadata.json"), "utf8"),
     );

@@ -114,7 +114,8 @@ REPAIRED_RAG="$OUT/.w5c-heading-repaired.jsonl"
 "$PYTHON" tools/replay_uncited_heading_repair.py \
   --input "$RAW_RAG" --output "$REPAIRED_RAG"
 "$PYTHON" tools/finalize_submissions.py \
-  --rag "$REPAIRED_RAG" --rag-tag cfda-w5c --outdir "$SUBMISSION_OUT"
+  --rag "$REPAIRED_RAG" --team-id "$TEAM_ID" --rag-tag "$RUN_ID" \
+  --outdir "$SUBMISSION_OUT"
 FINAL_RAG="$SUBMISSION_OUT/rag_output_trec_rag_2026.jsonl"
 "$PYTHON" tools/official_format_check.py --rag-only "$FINAL_RAG" "$TOPICS"
 echo "Final RAG submission: $FINAL_RAG"
