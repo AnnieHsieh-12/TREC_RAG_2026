@@ -58,6 +58,7 @@ export type LlmAttemptTrace = {
   latencyMs: number;
   success: boolean;
   errorCode?: string;
+  validationMessage?: string;
   outputChars: number;
   requestId?: string;
   usage?: LlmUsage;
