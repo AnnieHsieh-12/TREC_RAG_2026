@@ -369,7 +369,7 @@ Optional environment variables:
 | Variable | Purpose |
 | --- | --- |
 | `OUT` | Raw RAG run directory |
-| `SUBMISSION_OUT` | Finalized submission directory |
+| `SUBMISSION_OUT` | Finalized submission directory; defaults to `out/submissions/$RUN_ID` |
 | `SHARDS` | Number of parallel topic shards; default `4` |
 | `SIDECAR_URLS` | Comma-separated sidecar URLs |
 | `PYSERINI_TOKENS` | Comma-separated tokens assigned across shards |

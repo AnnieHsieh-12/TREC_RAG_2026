@@ -37,7 +37,7 @@ OUT="${OUT:-$CODE_ROOT/out/final-rag}"
 RUN_ID="${RUN_ID:-cfda-w5c}"
 TEAM_ID="${TEAM_ID:-cfda}"
 SIDECAR_URLS="${SIDECAR_URLS:-http://127.0.0.1:8765}"
-SUBMISSION_OUT="${SUBMISSION_OUT:-$CODE_ROOT/out/submissions/cfda-w5c}"
+SUBMISSION_OUT="${SUBMISSION_OUT:-$CODE_ROOT/out/submissions/$RUN_ID}"
 PYTHON="${PYTHON:-python3}"
 
 mkdir -p "$OUT/.shards"

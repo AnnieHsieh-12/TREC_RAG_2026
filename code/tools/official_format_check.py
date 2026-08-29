@@ -57,17 +57,19 @@ def check_r(path, topic_ids):
 
     ks, run_ids = [], set()
     for tid, rows in rows_by_topic.items():
-        rows_sorted = sorted(rows)
-        # Retrieval ranks must restart at 1 and remain contiguous.
-        ranks = [r[0] for r in rows_sorted]
+        # Check the order as written: sorting here would hide out-of-order rows.
+        ranks = [r[0] for r in rows]
         if ranks != list(range(1, len(ranks) + 1)):
-            errs.append(f"{tid}: ranks are not contiguous from 1 ({ranks[:3]}...)")
+            errs.append(
+                f"{tid}: rows are not ordered by contiguous ranks from 1 "
+                f"({ranks[:3]}...)"
+            )
         # "Keep scores non-increasing within each narrative."
-        scores = [r[1] for r in rows_sorted]
+        scores = [r[1] for r in rows]
         if any(b > a for a, b in zip(scores, scores[1:])):
             errs.append(f"{tid}: scores are not non-increasing")
         # Document IDs must be unique within a topic.
-        docids = [r[2] for r in rows_sorted]
+        docids = [r[2] for r in rows]
         if len(set(docids)) != len(docids):
             errs.append(f"{tid}: duplicate docid")
         run_ids.update(r[3] for r in rows)
@@ -144,6 +146,9 @@ def check_rag(path, topics):
             words += len(t.split())
             cits = s.get("citations", [])
             # "array of zero to three citations"
+            if not isinstance(cits, list):
+                errs.append(f"L{ln}: answer[{si}].citations must be a list")
+                continue
             if len(cits) > 3:
                 errs.append(f"L{ln}: answer[{si}] has {len(cits)} citations; maximum is 3")
             for c in cits:

@@ -34,6 +34,17 @@ class OfficialFormatCheckTests(unittest.TestCase):
             errors, _ = official_format_check.check_r(run, {"1"})
             self.assertTrue(any("invalid ClimbMix docid" in error for error in errors))
 
+    def test_retrieval_rows_must_be_in_rank_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp) / "run.tsv"
+            run.write_text(
+                "1 Q0 shard_00001_2 2 1.0 fixture\n"
+                "1 Q0 shard_00001_1 1 2.0 fixture\n",
+                encoding="utf-8",
+            )
+            errors, _ = official_format_check.check_r(run, {"1"})
+            self.assertTrue(any("rows are not ordered" in error for error in errors))
+
     def test_rag_accepts_direct_docid_empty_citations_and_uncited_refs(self):
         value = {
             "metadata": {
@@ -78,6 +89,26 @@ class OfficialFormatCheckTests(unittest.TestCase):
             )
             self.assertTrue(any("1024" in error for error in errors))
             self.assertTrue(any("out of range" in error for error in errors))
+
+    def test_non_list_citations_are_reported_without_crashing(self):
+        value = {
+            "metadata": {
+                "team_id": "cfda",
+                "run_id": "fixture",
+                "narrative_id": "1",
+                "narrative": "Example narrative",
+                "run_desc": "fixture",
+            },
+            "references": [],
+            "answer": [{"text": "Invalid citations value.", "citations": None}],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "rag.jsonl"
+            output.write_text(json.dumps(value) + "\n", encoding="utf-8")
+            errors, _ = official_format_check.check_rag(
+                output, {"1": "Example narrative"}
+            )
+            self.assertIn("L1: answer[0].citations must be a list", errors)
 
     def test_runtime_uses_one_canonical_validator(self):
         code_root = Path(__file__).resolve().parents[2]
