@@ -103,6 +103,17 @@ const CUTS = [10, 20, 50, 100, 500, 1000],
 export async function runFinalRagPipeline(o: IterativeOptions) {
   const env = o.env ?? process.env,
     out = resolve(o.outputDir);
+  const allTopics = parseTrecRag2026TopicsTsv(
+    readFileSync(resolve(o.topicsPath), "utf8"),
+  ).map((t) => ({ qid: t.topicId, title: "", narrative: t.narrative }));
+  const topics = allTopics.slice(0, o.limitTopics ?? Infinity);
+  const checklistByQid = o.layerChecklist
+    ? loadChecklist(
+        resolve(o.layerChecklist),
+        topics.map((topic) => topic.qid),
+      )
+    : new Map<string, string[]>();
+  preflightQrels(o.qrelsDir, topics);
   if (o.force) rmSync(out, { recursive: true, force: true });
   mkdirSync(join(out, "topics"), { recursive: true });
   const llmCfg = normalizeLlmClientConfig(o.llm),
@@ -121,24 +132,6 @@ export async function runFinalRagPipeline(o: IterativeOptions) {
       `iterative agentic RAG (${layersDesc}); BM25 top-1000 + weighted RRF; generator ${String(o.llm.model ?? "gpt-oss-120b")}`,
     layersDesc,
   };
-  const topics = parseTrecRag2026TopicsTsv(
-    readFileSync(resolve(o.topicsPath), "utf8"),
-  )
-    .map((t) => ({ qid: t.topicId, title: "", narrative: t.narrative }))
-    .slice(0, o.limitTopics ?? Infinity);
-  const checklistByQid = new Map<string, string[]>();
-  if (o.layerChecklist) {
-    for (const line of readFileSync(resolve(o.layerChecklist), "utf8").split(
-      /\r?\n/,
-    )) {
-      if (!line.trim()) continue;
-      const row = JSON.parse(line);
-      checklistByQid.set(
-        String(row.qid),
-        (Array.isArray(row.items) ? row.items : []).map(String),
-      );
-    }
-  }
   writeJson(join(out, "config.json"), {
     run_id: o.runId,
     team_id: o.teamId,
@@ -1787,6 +1780,59 @@ function assemble(out: string, topics: Topic[]): Rankings {
 }
 function qrelsPaths(dir: string) {
   return discoverQrelsFiles(dir);
+}
+function preflightQrels(qrelsDir: string | undefined, topics: Topic[]) {
+  if (!qrelsDir) return;
+  const paths = qrelsPaths(resolve(qrelsDir));
+  const qids = topics.map((topic) => topic.qid);
+  for (const path of paths)
+    requireQrelsTopicOverlap(parseQrels(path, qids), qids, path);
+}
+export function loadChecklist(
+  path: string,
+  selectedTopicIds: string[],
+): Map<string, string[]> {
+  const checklist = new Map<string, string[]>();
+  for (const [index, line] of readFileSync(path, "utf8")
+    .split(/\r?\n/)
+    .entries()) {
+    if (!line.trim()) continue;
+    let row: unknown;
+    try {
+      row = JSON.parse(line);
+    } catch (error) {
+      throw new Error(
+        `Invalid checklist JSON on line ${index + 1}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    if (!row || typeof row !== "object" || Array.isArray(row))
+      throw new Error(`Checklist line ${index + 1} must be an object`);
+    const value = row as Record<string, unknown>;
+    if (typeof value.qid !== "string" || !value.qid.trim())
+      throw new Error(`Checklist line ${index + 1} has an invalid qid`);
+    const qid = value.qid;
+    if (checklist.has(qid)) throw new Error(`Duplicate checklist qid: ${qid}`);
+    if (
+      !Array.isArray(value.items) ||
+      value.items.length === 0 ||
+      value.items.some(
+        (item) => typeof item !== "string" || item.trim().length === 0,
+      )
+    )
+      throw new Error(
+        `Checklist items for ${qid} must be a non-empty array of non-empty strings`,
+      );
+    checklist.set(
+      qid,
+      value.items.map((item) => (item as string).trim()),
+    );
+  }
+  const missing = selectedTopicIds.filter((qid) => !checklist.has(qid));
+  if (missing.length)
+    throw new Error(
+      `Checklist is missing ${missing.length} selected topic(s): ${missing.slice(0, 5).join(", ")}`,
+    );
+  return checklist;
 }
 function writeOptionalMetrics(
   out: string,

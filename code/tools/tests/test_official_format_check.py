@@ -110,6 +110,92 @@ class OfficialFormatCheckTests(unittest.TestCase):
             )
             self.assertIn("L1: answer[0].citations must be a list", errors)
 
+    def test_malformed_json_types_are_reported_without_crashing(self):
+        cases = [
+            (None, "RAG record must be an object"),
+            ([], "RAG record must be an object"),
+            (
+                {"metadata": None, "references": [], "answer": []},
+                "metadata must be an object",
+            ),
+            (
+                {
+                    "metadata": {
+                        "team_id": "cfda",
+                        "run_id": "fixture",
+                        "narrative_id": [],
+                        "narrative": "Example narrative",
+                        "run_desc": "fixture",
+                    },
+                    "references": [],
+                    "answer": [],
+                },
+                "metadata.narrative_id must be a non-empty string",
+            ),
+            (
+                {
+                    "metadata": {
+                        "team_id": "cfda",
+                        "run_id": "fixture",
+                        "narrative_id": "1",
+                        "narrative": "Example narrative",
+                        "run_desc": "fixture",
+                    },
+                    "references": [],
+                    "answer": [{"text": 17, "citations": []}],
+                },
+                "answer[0].text must be a non-empty string",
+            ),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "rag.jsonl"
+            for value, expected in cases:
+                output.write_text(json.dumps(value) + "\n", encoding="utf-8")
+                errors, _ = official_format_check.check_rag(
+                    output, {"1": "Example narrative"}
+                )
+                self.assertTrue(any(expected in error for error in errors))
+
+    def test_citations_field_is_required_and_boolean_is_not_an_index(self):
+        base = {
+            "metadata": {
+                "team_id": "cfda",
+                "run_id": "fixture",
+                "narrative_id": "1",
+                "narrative": "Example narrative",
+                "run_desc": "fixture",
+            },
+            "references": ["shard_00001_1", "shard_00001_2"],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "rag.jsonl"
+            missing = {**base, "answer": [{"text": "Missing citations."}]}
+            output.write_text(json.dumps(missing) + "\n", encoding="utf-8")
+            errors, _ = official_format_check.check_rag(
+                output, {"1": "Example narrative"}
+            )
+            self.assertIn("L1: answer[0].citations is missing", errors)
+
+            boolean = {
+                **base,
+                "answer": [{"text": "Boolean citation.", "citations": [True]}],
+            }
+            output.write_text(json.dumps(boolean) + "\n", encoding="utf-8")
+            errors, _ = official_format_check.check_rag(
+                output, {"1": "Example narrative"}
+            )
+            self.assertTrue(any("invalid citation type" in error for error in errors))
+
+    def test_retrieval_score_must_be_finite(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp) / "run.tsv"
+            for score in ("NaN", "Infinity", "-Infinity"):
+                run.write_text(
+                    f"1 Q0 shard_00001_1 1 {score} fixture\n", encoding="utf-8"
+                )
+                errors, _ = official_format_check.check_r(run, {"1"})
+                self.assertTrue(any("score must be finite" in error for error in errors))
+
     def test_runtime_uses_one_canonical_validator(self):
         code_root = Path(__file__).resolve().parents[2]
         canonical = code_root / "src/trec-rag-2026/shared-rag/validation.ts"

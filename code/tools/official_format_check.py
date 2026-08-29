@@ -6,6 +6,7 @@ Usage:
   ``python3 tools/official_format_check.py --rag-only rag.jsonl topics.tsv``
 """
 import json
+import math
 from pathlib import Path
 import re
 import sys
@@ -44,6 +45,9 @@ def check_r(path, topic_ids):
             parsed_rank, parsed_score = int(rank), float(score)
         except ValueError:
             errs.append(f"L{ln}: invalid numeric rank/score: {rank!r}/{score!r}")
+            continue
+        if not math.isfinite(parsed_score):
+            errs.append(f"L{ln}: score must be finite: {score!r}")
             continue
         rows_by_topic.setdefault(tid, []).append((parsed_rank, parsed_score, docid, run_id))
 
@@ -105,21 +109,29 @@ def check_rag(path, topics):
         except json.JSONDecodeError as e:
             errs.append(f"L{ln}: invalid JSON: {e}")
             continue
+        if not isinstance(d, dict):
+            errs.append(f"L{ln}: RAG record must be an object")
+            continue
         # "Every object MUST have metadata, references, answer"
         for k in ("metadata", "references", "answer"):
             if k not in d:
                 errs.append(f"L{ln}: missing {k}")
         md = d.get("metadata", {})
+        if not isinstance(md, dict):
+            errs.append(f"L{ln}: metadata must be an object")
+            md = {}
         # Organizer-required metadata fields.
         for k in ("team_id", "narrative_id", "narrative", "run_id", "run_desc"):
-            if not md.get(k):
-                errs.append(f"L{ln}: metadata.{k} is missing or empty")
+            value = md.get(k)
+            if not isinstance(value, str) or not value.strip():
+                errs.append(f"L{ln}: metadata.{k} must be a non-empty string")
         nid = md.get("narrative_id")
-        if nid in seen:
-            errs.append(f"L{ln}: duplicate narrative_id {nid}")
-        seen.add(nid)
+        if isinstance(nid, str) and nid:
+            if nid in seen:
+                errs.append(f"L{ln}: duplicate narrative_id {nid}")
+            seen.add(nid)
         # "narrative: exact copy from second column"
-        if nid in topics and md.get("narrative") != topics[nid]:
+        if isinstance(nid, str) and nid in topics and md.get("narrative") != topics[nid]:
             errs.append(f"L{ln}: narrative is not an exact topics-file copy ({nid})")
         refs = d.get("references", [])
         if not isinstance(refs, list) or any(not isinstance(r, str) for r in refs):
@@ -142,9 +154,13 @@ def check_rag(path, topics):
                 continue
             t = s.get("text", "")
             if not isinstance(t, str) or not t.strip():
-                errs.append(f"L{ln}: answer[{si}].text is empty")
-            words += len(t.split())
-            cits = s.get("citations", [])
+                errs.append(f"L{ln}: answer[{si}].text must be a non-empty string")
+            else:
+                words += len(t.split())
+            if "citations" not in s:
+                errs.append(f"L{ln}: answer[{si}].citations is missing")
+                continue
+            cits = s["citations"]
             # "array of zero to three citations"
             if not isinstance(cits, list):
                 errs.append(f"L{ln}: answer[{si}].citations must be a list")
@@ -153,7 +169,7 @@ def check_rag(path, topics):
                 errs.append(f"L{ln}: answer[{si}] has {len(cits)} citations; maximum is 3")
             for c in cits:
                 # "MUST reference valid references entries"
-                if isinstance(c, int):
+                if isinstance(c, int) and not isinstance(c, bool):
                     if c < 0 or c >= len(refs):
                         errs.append(f"L{ln}: answer[{si}] citation index {c} is out of range")
                 elif isinstance(c, str):

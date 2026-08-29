@@ -419,6 +419,12 @@ export async function runFinalRetrievalPipeline(o: IterativeOptions) {
     );
   const env = o.env ?? process.env,
     out = resolve(o.outputDir);
+  const topics = parseTrecRag2026TopicsTsv(
+    readFileSync(resolve(o.topicsPath), "utf8"),
+  )
+    .map((t) => ({ qid: t.topicId, title: "", narrative: t.narrative }))
+    .slice(0, o.limitTopics ?? Infinity);
+  preflightQrels(o.qrelsDir, topics);
   if (o.force) rmSync(out, { recursive: true, force: true });
   mkdirSync(join(out, "topics"), { recursive: true });
   const llmCfg = normalizeLlmClientConfig(o.llm),
@@ -439,11 +445,6 @@ export async function runFinalRetrievalPipeline(o: IterativeOptions) {
     promptVersion: RAG_PROMPT_PROFILE,
     runDesc: POLICY.retrieval_policy,
   };
-  const topics = parseTrecRag2026TopicsTsv(
-    readFileSync(resolve(o.topicsPath), "utf8"),
-  )
-    .map((t) => ({ qid: t.topicId, title: "", narrative: t.narrative }))
-    .slice(0, o.limitTopics ?? Infinity);
   writeJson(join(out, "config.json"), {
     run_id: o.runId,
     team_id: o.teamId,
@@ -3002,6 +3003,13 @@ function assemble(out: string, topics: Topic[]): Rankings {
 }
 function qrelsPaths(dir: string) {
   return discoverQrelsFiles(dir);
+}
+function preflightQrels(qrelsDir: string | undefined, topics: Topic[]) {
+  if (!qrelsDir) return;
+  const paths = qrelsPaths(resolve(qrelsDir));
+  const qids = topics.map((topic) => topic.qid);
+  for (const path of paths)
+    requireQrelsTopicOverlap(parseQrels(path, qids), qids, path);
 }
 function writeOptionalMetrics(
   out: string,

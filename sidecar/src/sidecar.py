@@ -29,6 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import EMBED_CACHE_DIR
+from src.cache_paths import doc_cache_path, raw_pool_path
 from src.common import load_token
 from src.passages import select_passages
 from src.retriever import fetch_doc, RetrieverError
@@ -80,8 +81,8 @@ def _load_raw_pools(qid):
     if qid in _raw_pool_loaded:
         return
     for suffix in ("-k500", "-k200", ""):
-        path = os.path.join(RAW_CACHE, f"{qid}{suffix}.json")
-        if not os.path.exists(path):
+        path = raw_pool_path(RAW_CACHE, qid, suffix)
+        if path is None or not os.path.exists(path):
             continue
         try:
             with open(path, encoding="utf-8") as pool_file:
@@ -107,7 +108,7 @@ def get_doc_text(docid, qid=None):
         _load_raw_pools(qid)
     if docid in _raw_pool_texts:
         return _raw_pool_texts[docid]
-    fpath = os.path.join(DOCTEXT_CACHE, f"{docid}.txt")
+    fpath = doc_cache_path(DOCTEXT_CACHE, docid)
     if os.path.exists(fpath):
         with open(fpath, encoding="utf-8") as cached_file:
             return cached_file.read()
@@ -123,6 +124,7 @@ def get_doc_text(docid, qid=None):
         pass
     tmp = None
     try:
+        os.makedirs(os.path.dirname(fpath), exist_ok=True)
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",

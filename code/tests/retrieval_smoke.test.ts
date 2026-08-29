@@ -181,6 +181,40 @@ test("Retrieval runs without qrels and omits diagnostic metrics", async () => {
   }
 });
 
+test("unrelated qrels fail before force removes an existing output", async () => {
+  const root = mkdtempSync(join(tmpdir(), "cfda-retrieval-qrels-preflight-"));
+  const topics = join(root, "topics.tsv");
+  const qrels = join(root, "qrels");
+  const output = join(root, "output");
+  writeFileSync(topics, "1\tExample narrative.\n");
+  mkdirSync(qrels);
+  mkdirSync(output);
+  writeFileSync(join(qrels, "unrelated.qrels"), "other 0 shard_00001_1 2\n");
+  writeFileSync(join(output, "sentinel"), "keep");
+
+  await assert.rejects(
+    runFinalRetrievalPipeline({
+      runId: "preflight",
+      teamId: "cfda",
+      outputDir: output,
+      topicsPath: topics,
+      qrelsDir: qrels,
+      pyseriniBaseUrl: "http://unused",
+      pyseriniIndex: "climbmix-400b",
+      pyseriniTokenEnv: "PYSERINI_API_TOKEN",
+      initialDocs: 1,
+      docsPerIteration: 1,
+      maxDocumentsRead: 1,
+      maxIterations: 1,
+      documentReadLimit: 1,
+      llm: { provider: "nchc_llm", model: "unused" },
+      force: true,
+    }),
+    /no topic IDs in common/,
+  );
+  assert.equal(readFileSync(join(output, "sentinel"), "utf8"), "keep");
+});
+
 function jsonResponse(value: unknown): Response {
   return new Response(JSON.stringify(value), {
     status: 200,

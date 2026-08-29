@@ -2,8 +2,36 @@
 """Apply the registered team and run identities to submission files."""
 
 import argparse
+from contextlib import contextmanager
 import json
+import os
 from pathlib import Path
+import tempfile
+
+
+@contextmanager
+def atomic_text_writer(output: Path):
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=output.parent,
+            prefix=f".{output.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as destination:
+            temporary = Path(destination.name)
+            yield destination
+            destination.flush()
+            os.fsync(destination.fileno())
+        os.replace(temporary, output)
+        temporary = None
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -19,8 +47,8 @@ def main() -> None:
     if args.retrieval:
         output = args.outdir / "r_output_trec_rag_2026.tsv"
         rows = 0
-        with args.retrieval.open(encoding="utf-8") as source, output.open(
-            "w", encoding="utf-8"
+        with args.retrieval.open(encoding="utf-8") as source, atomic_text_writer(
+            output
         ) as destination:
             for rows, line in enumerate(source, 1):
                 fields = line.split()
@@ -33,8 +61,8 @@ def main() -> None:
     if args.rag:
         output = args.outdir / "rag_output_trec_rag_2026.jsonl"
         topics = 0
-        with args.rag.open(encoding="utf-8") as source, output.open(
-            "w", encoding="utf-8"
+        with args.rag.open(encoding="utf-8") as source, atomic_text_writer(
+            output
         ) as destination:
             for line in source:
                 if not line.strip():

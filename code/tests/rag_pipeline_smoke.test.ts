@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -88,6 +94,40 @@ test("final RAG pipeline completes without qrels", async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("RAG rejects unrelated qrels before replacing output", async () => {
+  const root = mkdtempSync(join(tmpdir(), "cfda-rag-qrels-preflight-"));
+  const topics = join(root, "topics.tsv");
+  const qrels = join(root, "qrels");
+  const output = join(root, "output");
+  writeFileSync(topics, "1\tExample narrative.\n");
+  mkdirSync(qrels);
+  mkdirSync(output);
+  writeFileSync(join(qrels, "unrelated.qrels"), "other 0 shard_00001_1 2\n");
+  writeFileSync(join(output, "sentinel"), "keep");
+
+  await assert.rejects(
+    runFinalRagPipeline({
+      runId: "preflight",
+      teamId: "cfda",
+      outputDir: output,
+      topicsPath: topics,
+      qrelsDir: qrels,
+      pyseriniBaseUrl: "http://unused",
+      pyseriniIndex: "climbmix-400b",
+      pyseriniTokenEnv: "PYSERINI_API_TOKEN",
+      initialDocs: 1,
+      docsPerIteration: 1,
+      maxDocumentsRead: 1,
+      maxIterations: 1,
+      documentReadLimit: 1,
+      llm: { provider: "openai_llm", model: "unused" },
+      force: true,
+    }),
+    /no topic IDs in common/,
+  );
+  assert.equal(readFileSync(join(output, "sentinel"), "utf8"), "keep");
 });
 
 function jsonResponse(value: unknown): Response {

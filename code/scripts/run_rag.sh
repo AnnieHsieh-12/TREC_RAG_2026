@@ -27,6 +27,8 @@ fi
 for required in "$TOPICS" "$CHECKLIST"; do
   [[ -s "$required" ]] || { echo "Missing input: $required" >&2; exit 1; }
 done
+PYTHON="${PYTHON:-python3}"
+"$PYTHON" tools/validate_checklist.py "$TOPICS" "$CHECKLIST"
 if [[ -n "${QRELS_DIR:-}" && ! -d "$QRELS_DIR" ]]; then
   echo "Missing qrels directory: $QRELS_DIR" >&2
   exit 1
@@ -38,7 +40,15 @@ RUN_ID="${RUN_ID:-cfda-w5c}"
 TEAM_ID="${TEAM_ID:-cfda}"
 SIDECAR_URLS="${SIDECAR_URLS:-http://127.0.0.1:8765}"
 SUBMISSION_OUT="${SUBMISSION_OUT:-$CODE_ROOT/out/submissions/$RUN_ID}"
-PYTHON="${PYTHON:-python3}"
+
+if ! [[ "$SHARDS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "SHARDS must be a positive integer; got: $SHARDS" >&2
+  exit 2
+fi
+if ! [[ "$RUN_ID" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "RUN_ID must contain only letters, digits, dot, underscore, or hyphen" >&2
+  exit 2
+fi
 
 mkdir -p "$OUT/.shards"
 
@@ -46,6 +56,16 @@ IFS=',' read -ra TOKENS <<< "${PYSERINI_TOKENS:-}"
 TOKEN_COUNT=${#TOKENS[@]}
 IFS=',' read -ra SIDECARS <<< "$SIDECAR_URLS"
 SIDECAR_COUNT=${#SIDECARS[@]}
+if [[ "$SIDECAR_COUNT" -eq 0 ]]; then
+  echo "SIDECAR_URLS must contain at least one URL" >&2
+  exit 2
+fi
+for sidecar in "${SIDECARS[@]}"; do
+  if [[ -z "$sidecar" ]]; then
+    echo "SIDECAR_URLS contains an empty URL" >&2
+    exit 2
+  fi
+done
 
 run_entry() {
   local topics_file="$1"
