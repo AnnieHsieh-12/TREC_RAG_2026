@@ -15,6 +15,15 @@ import sys
 # ``shard_00459_61697``.  Keep one canonical predicate and apply it to both
 # Retrieval rows and RAG references.
 CLIMBMIX_RE = re.compile(r"^shard_\d+_\d+$")
+# A conservative boundary check avoids treating initials and abbreviations
+# such as "U.S." and "Dr." as separate answer sentences.
+SENTENCE_BOUNDARY_RE = re.compile(
+    r"[A-Za-z]{3,}[.!?][\"')\]]*\s+(?=[A-Z0-9])"
+)
+
+
+def reject_nonstandard_constant(value):
+    raise ValueError(f"non-standard JSON numeric constant {value}")
 
 
 def is_climbmix_docid(value):
@@ -105,8 +114,10 @@ def check_rag(path, topics):
         if not line.strip():
             continue
         try:
-            d = json.loads(line)          # "File MUST be valid JSONL"
-        except json.JSONDecodeError as e:
+            d = json.loads(
+                line, parse_constant=reject_nonstandard_constant
+            )  # "File MUST be valid JSONL"
+        except (json.JSONDecodeError, ValueError) as e:
             errs.append(f"L{ln}: invalid JSON: {e}")
             continue
         if not isinstance(d, dict):
@@ -157,6 +168,10 @@ def check_rag(path, topics):
                 errs.append(f"L{ln}: answer[{si}].text must be a non-empty string")
             else:
                 words += len(t.split())
+                if SENTENCE_BOUNDARY_RE.search(t.strip()):
+                    errs.append(
+                        f"L{ln}: answer[{si}].text contains multiple sentences"
+                    )
             if "citations" not in s:
                 errs.append(f"L{ln}: answer[{si}].citations is missing")
                 continue
@@ -191,9 +206,18 @@ def check_rag(path, topics):
 
 def load_topics(topics_path):
     topics = {}
-    for line in Path(topics_path).read_text(encoding="utf-8").splitlines():
+    for ln, line in enumerate(
+        Path(topics_path).read_text(encoding="utf-8-sig").splitlines(), 1
+    ):
         if line.strip():
-            qid, narrative = line.split("\t", 1)
+            parts = line.split("\t")
+            if len(parts) != 2 or not all(parts):
+                raise ValueError(
+                    f"topics L{ln}: expected exactly two non-empty TSV columns"
+                )
+            qid, narrative = parts
+            if qid in topics:
+                raise ValueError(f"topics L{ln}: duplicate topic_id {qid}")
             topics[qid] = narrative
     return topics
 
@@ -214,9 +238,23 @@ def report(name, fn, path, expected):
 
 
 def main():
+    if len(sys.argv) == 4 and sys.argv[1] == "--retrieval-only":
+        retrieval_path, topics_path = sys.argv[2:4]
+        try:
+            topics = load_topics(topics_path)
+        except ValueError as error:
+            print(f"topics file invalid: {error}", file=sys.stderr)
+            sys.exit(1)
+        sys.exit(
+            1 if report("R", check_r, retrieval_path, set(topics)) else 0
+        )
     if len(sys.argv) == 4 and sys.argv[1] == "--rag-only":
         rag_path, topics_path = sys.argv[2:4]
-        topics = load_topics(topics_path)
+        try:
+            topics = load_topics(topics_path)
+        except ValueError as error:
+            print(f"topics file invalid: {error}", file=sys.stderr)
+            sys.exit(1)
         sys.exit(1 if report("RAG", check_rag, rag_path, topics) else 0)
     if len(sys.argv) != 4:
         raise SystemExit(
@@ -225,7 +263,11 @@ def main():
         )
 
     r_path, rag_path, topics_path = sys.argv[1:4]
-    topics = load_topics(topics_path)
+    try:
+        topics = load_topics(topics_path)
+    except ValueError as error:
+        print(f"topics file invalid: {error}", file=sys.stderr)
+        sys.exit(1)
     bad = report("R", check_r, r_path, set(topics))
     bad += report("RAG", check_rag, rag_path, topics)
     sys.exit(1 if bad else 0)

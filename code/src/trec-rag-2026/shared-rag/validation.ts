@@ -231,6 +231,14 @@ function collectOfficialIssues(value: unknown): ValidationIssue[] {
       });
     } else {
       words += sentence.text.trim().split(/\s+/).filter(Boolean).length;
+      if (
+        /[A-Za-z]{3,}[.!?]["')\]]*\s+(?=[A-Z0-9])/.test(sentence.text.trim())
+      ) {
+        issues.push({
+          code: "MULTIPLE_SENTENCES_IN_ITEM",
+          message: `answer[${sentenceIndex}].text must contain exactly one sentence.`,
+        });
+      }
     }
 
     if (!Array.isArray(sentence.citations)) {

@@ -326,6 +326,7 @@ python tools/deep_ce_rerank.py out/cfda-retrieval \
 
 ```bash
 RUN_DIR="$PWD/out/cfda-retrieval" \
+TOPICS=/path/to/topics.tsv \
 bash scripts/build_retrieval_submissions.sh
 ```
 
@@ -354,7 +355,8 @@ Set `QRELS_DIR=/path/to/development-qrels` to enable optional diagnostic
 metrics.
 
 The launcher uses four shards by default, resumes completed topics, performs a
-final rescue/assembly pass, applies deterministic finalization, and validates
+final completeness pass without weakening the answer-quality gate, applies
+deterministic finalization, and validates
 the final JSONL against the complete topics file. Any missing, duplicated, or
 extra topic makes the command fail.
 
@@ -376,6 +378,7 @@ Optional environment variables:
 | `QRELS_DIR` | Optional directory of development qrels |
 | `RUN_ID`, `TEAM_ID` | Run and team identifiers written to generated records |
 | `PYTHON` | Python executable; default `python3` |
+| `REPLAY_OFFICIAL_W5C_REPAIR=1` | Replay the hash-gated archival repair only when reconstructing the frozen official W5c artifact |
 
 ## Validation and tests
 

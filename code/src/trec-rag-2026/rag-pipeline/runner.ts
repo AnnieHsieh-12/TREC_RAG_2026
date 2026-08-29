@@ -273,7 +273,38 @@ export async function runFinalRagPipeline(o: IterativeOptions) {
     expected_count: topics.length,
   };
   writeJson(join(out, "validation.json"), validation);
+  // Reconstruct the final summary from durable per-topic artifacts. During a
+  // resume/assembly pass most topics are skipped, so in-memory counters alone
+  // describe only that process invocation rather than the completed run.
+  summary.processed_count = completed.length;
   summary.failed_count = failed.length;
+  summary.iterations_by_topic = {};
+  summary.stop_reason_by_topic = {};
+  for (const topic of completed) {
+    const status = readIf(join(out, "topics", `${topic.qid}.status.json`));
+    summary.iterations_by_topic[topic.qid] = status?.iterations ?? 0;
+    summary.stop_reason_by_topic[topic.qid] = status?.stop_reason ?? "unknown";
+  }
+  const selectedQids = new Set(topics.map((topic) => topic.qid));
+  const llmTrace = readJsonlIf(join(out, "llm_trace.jsonl")).filter((row) =>
+    selectedQids.has(String(row?.qid ?? "")),
+  );
+  summary.llm_call_count = llmTrace.length;
+  summary.llm_failed_call_count = llmTrace.filter(
+    (row) => row?.success === false,
+  ).length;
+  summary.llm_retry_count = llmTrace.filter(
+    (row) => Number(row?.attempt ?? 0) > 1,
+  ).length;
+  summary.judge_fallback_count = completed.reduce((count, topic) => {
+    const trace = readIf(join(out, "topics", `${topic.qid}.judge_trace.json`));
+    return (
+      count +
+      (Array.isArray(trace)
+        ? trace.filter((entry) => typeof entry?.error_code === "string").length
+        : 0)
+    );
+  }, 0);
   summary.average_documents_read_successful =
     readTraces.reduce(
       (s: any, x: any) => s + (x?.documents_read_successful ?? 0),
@@ -1963,6 +1994,13 @@ function appendJsonl(p: string, v: any, _env: NodeJS.ProcessEnv) {
 }
 function readIf(p: string): any {
   return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : null;
+}
+function readJsonlIf(p: string): any[] {
+  if (!existsSync(p)) return [];
+  return readFileSync(p, "utf8")
+    .split(/\r?\n/)
+    .filter((line) => line.trim() !== "")
+    .map((line) => JSON.parse(line));
 }
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);

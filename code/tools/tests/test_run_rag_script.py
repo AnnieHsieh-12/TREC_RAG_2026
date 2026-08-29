@@ -45,6 +45,11 @@ class RunRagScriptTests(unittest.TestCase):
             self.assertEqual(completed.returncode, 2)
             self.assertIn("RUN_ID must contain only", completed.stderr)
 
+    def test_assembly_does_not_disable_quality_gate(self):
+        script = SCRIPT.read_text(encoding="utf-8")
+        self.assertNotIn("ANSWER_QUALITY_GATE=0", script)
+        self.assertIn('REPLAY_OFFICIAL_W5C_REPAIR:-0', script)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -196,6 +196,53 @@ class OfficialFormatCheckTests(unittest.TestCase):
                 errors, _ = official_format_check.check_r(run, {"1"})
                 self.assertTrue(any("score must be finite" in error for error in errors))
 
+    def test_rag_rejects_nonstandard_json_numbers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "rag.jsonl"
+            output.write_text(
+                '{"metadata":{"team_id":"cfda","narrative_id":"1",'
+                '"narrative":"Example narrative","run_id":"fixture",'
+                '"run_desc":"fixture"},"references":[],"answer":'
+                '[{"text":"Invalid numeric value.","citations":[]}],'
+                '"extra":NaN}\n',
+                encoding="utf-8",
+            )
+            errors, _ = official_format_check.check_rag(
+                output, {"1": "Example narrative"}
+            )
+            self.assertTrue(any("invalid JSON" in error for error in errors))
+
+    def test_rag_item_must_not_contain_multiple_sentences(self):
+        value = {
+            "metadata": {
+                "team_id": "cfda",
+                "run_id": "fixture",
+                "narrative_id": "1",
+                "narrative": "Example narrative",
+                "run_desc": "fixture",
+            },
+            "references": [],
+            "answer": [
+                {"text": "First factual sentence. Second factual sentence.", "citations": []}
+            ],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "rag.jsonl"
+            output.write_text(json.dumps(value) + "\n", encoding="utf-8")
+            errors, _ = official_format_check.check_rag(
+                output, {"1": "Example narrative"}
+            )
+            self.assertTrue(any("multiple sentences" in error for error in errors))
+
+    def test_duplicate_topic_ids_are_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            topics = Path(tmp) / "topics.tsv"
+            topics.write_text(
+                "1\tFirst narrative\n1\tSecond narrative\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(ValueError, "duplicate topic_id"):
+                official_format_check.load_topics(topics)
+
     def test_runtime_uses_one_canonical_validator(self):
         code_root = Path(__file__).resolve().parents[2]
         canonical = code_root / "src/trec-rag-2026/shared-rag/validation.ts"

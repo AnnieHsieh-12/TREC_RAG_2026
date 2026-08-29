@@ -9,6 +9,7 @@ CODE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$CODE_ROOT"
 
 : "${RUN_DIR:?Set RUN_DIR to the final Retrieval run directory}"
+: "${TOPICS:?Set TOPICS to the topics TSV used for this run}"
 
 PYTHON="${PYTHON:-python3}"
 POOL="${POOL:-$RUN_DIR/candidate_pool_top5000.trec}"
@@ -20,15 +21,18 @@ DEEP_TAG="${DEEP_TAG:-cfda-vfs-deep}"
 for required in "$POOL" "$DEEP_POOL"; do
   [[ -s "$required" ]] || { echo "Missing input: $required" >&2; exit 1; }
 done
+[[ -s "$TOPICS" ]] || { echo "Missing input: $TOPICS" >&2; exit 1; }
 
 mkdir -p "$OUT"
-merged="$OUT/.deep_merged.trec"
+STAGE="$(mktemp -d "$OUT/.build.XXXXXX")"
+trap 'rm -rf "$STAGE"' EXIT
+merged="$STAGE/deep_merged.trec"
 "$PYTHON" tools/merge_deep_tail.py "$POOL" "$DEEP_POOL" --out "$merged"
 
 emit() {
   local tag="$1"
   local ranking="$2"
-  local output_dir="$OUT/$tag"
+  local output_dir="$STAGE/$tag"
   mkdir -p "$output_dir"
   "$PYTHON" tools/apply_deep_cut.py "$POOL" "$ranking" --max 5000 \
     --out "$output_dir/r_output_trec_rag_2026.tsv" --tag "$tag"
@@ -36,6 +40,19 @@ emit() {
 
 emit "$UNC_TAG" "$POOL"
 emit "$DEEP_TAG" "$merged"
+
+# Never announce a final output that fails the organizer-format constraints.
+for output in \
+  "$STAGE/$UNC_TAG/r_output_trec_rag_2026.tsv" \
+  "$STAGE/$DEEP_TAG/r_output_trec_rag_2026.tsv"; do
+  "$PYTHON" tools/official_format_check.py --retrieval-only "$output" "$TOPICS"
+done
+
+for tag in "$UNC_TAG" "$DEEP_TAG"; do
+  mkdir -p "$OUT/$tag"
+  mv "$STAGE/$tag/r_output_trec_rag_2026.tsv" \
+    "$OUT/$tag/r_output_trec_rag_2026.tsv"
+done
 
 echo "Final Retrieval outputs:"
 echo "  $OUT/$UNC_TAG/r_output_trec_rag_2026.tsv"

@@ -83,7 +83,7 @@ run_entry() {
     token_args=(--pyserini-token-env "CFDA_PYSERINI_TOKEN_$shard_id")
   fi
 
-  DENSE_DOCS=60 DENSE_CHARS=1200 ANSWER_QUALITY_GATE="${ANSWER_QUALITY_GATE:-1}" \
+  DENSE_DOCS=60 DENSE_CHARS=1200 ANSWER_QUALITY_GATE=1 \
   ./node_modules/.bin/tsx src/trec-rag-2026/rag-pipeline/run.ts \
     --run-id "$RUN_ID" \
     --output-dir "$OUT" \
@@ -126,15 +126,19 @@ for pid in "${pids[@]}"; do
 done
 [[ "$failed" -eq 0 ]] || echo "Warning: $failed shard(s) require resume" >&2
 
-# Complete/resume all topics and assemble one output file. The rescue pass
-# disables the operational quality gate so every input topic is represented.
-ANSWER_QUALITY_GATE=0 run_entry "$TOPICS" "$OUT/.shards/assemble.log" 0
+# Complete/resume all topics and assemble one output file. Keep the quality
+# gate enabled: completeness must not turn a degraded answer into a valid one.
+run_entry "$TOPICS" "$OUT/.shards/assemble.log" 0
 RAW_RAG="$OUT/rag_output_trec_rag_2026.jsonl"
-REPAIRED_RAG="$OUT/.w5c-heading-repaired.jsonl"
-"$PYTHON" tools/replay_uncited_heading_repair.py \
-  --input "$RAW_RAG" --output "$REPAIRED_RAG"
+FINALIZATION_INPUT="$RAW_RAG"
+if [[ "${REPLAY_OFFICIAL_W5C_REPAIR:-0}" == "1" ]]; then
+  REPAIRED_RAG="$OUT/.w5c-heading-repaired.jsonl"
+  "$PYTHON" tools/replay_uncited_heading_repair.py \
+    --input "$RAW_RAG" --output "$REPAIRED_RAG"
+  FINALIZATION_INPUT="$REPAIRED_RAG"
+fi
 "$PYTHON" tools/finalize_submissions.py \
-  --rag "$REPAIRED_RAG" --team-id "$TEAM_ID" --rag-tag "$RUN_ID" \
+  --rag "$FINALIZATION_INPUT" --team-id "$TEAM_ID" --rag-tag "$RUN_ID" \
   --outdir "$SUBMISSION_OUT"
 FINAL_RAG="$SUBMISSION_OUT/rag_output_trec_rag_2026.jsonl"
 "$PYTHON" tools/official_format_check.py --rag-only "$FINAL_RAG" "$TOPICS"

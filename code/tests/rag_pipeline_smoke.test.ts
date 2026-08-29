@@ -91,6 +91,38 @@ test("final RAG pipeline completes without qrels", async () => {
     assert.deepEqual(rows[0].answer[0].citations, [0]);
     assert.equal(existsSync(join(output, "metrics.json")), false);
     assert.equal(existsSync(join(output, "per_topic_metrics.json")), false);
+
+    // A resume-only assembly must describe the durable completed run, not
+    // report zero work simply because the topic was skipped in this process.
+    await runFinalRagPipeline({
+      runId: "offline-smoke",
+      teamId: "cfda",
+      outputDir: output,
+      topicsPath: topics,
+      pyseriniBaseUrl: "http://mock.pyserini",
+      pyseriniIndex: "climbmix-400b",
+      pyseriniTokenEnv: "PYSERINI_API_TOKEN",
+      initialDocs: 1,
+      docsPerIteration: 1,
+      maxDocumentsRead: 1,
+      maxIterations: 1,
+      documentReadLimit: 20,
+      llm: {
+        provider: "openai_llm",
+        model: "mock-model",
+        apiKeyEnv: "OPENAI_API_KEY",
+        baseUrl: "http://mock.openai/v1",
+      },
+      env: { OPENAI_API_KEY: "test-only", PYSERINI_API_TOKEN: "test-only" },
+      resume: true,
+    });
+    const summary = JSON.parse(
+      readFileSync(join(output, "run-summary.internal.json"), "utf8"),
+    );
+    assert.equal(summary.processed_count, 1);
+    assert.equal(summary.llm_call_count, 2);
+    assert.equal(summary.iterations_by_topic["1"], 1);
+    assert.notEqual(summary.stop_reason_by_topic["1"], undefined);
   } finally {
     globalThis.fetch = originalFetch;
   }
