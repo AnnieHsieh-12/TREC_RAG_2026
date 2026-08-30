@@ -21,13 +21,8 @@ if [[ -f .env.local ]]; then
 fi
 
 : "${TOPICS:?Set TOPICS to the input topics TSV}"
-: "${CHECKLIST:?Set CHECKLIST to the topic checklist JSONL}"
-
-for required in "$TOPICS" "$CHECKLIST"; do
-  [[ -s "$required" ]] || { echo "Missing input: $required" >&2; exit 1; }
-done
 PYTHON="${PYTHON:-python3}"
-"$PYTHON" tools/validate_checklist.py "$TOPICS" "$CHECKLIST"
+[[ -s "$TOPICS" ]] || { echo "Missing input: $TOPICS" >&2; exit 1; }
 if [[ -n "${QRELS_DIR:-}" && ! -d "$QRELS_DIR" ]]; then
   echo "Missing qrels directory: $QRELS_DIR" >&2
   exit 1
@@ -35,6 +30,8 @@ fi
 
 SHARDS="${SHARDS:-4}"
 OUT="${OUT:-$CODE_ROOT/out/final-rag}"
+CHECKLIST="${CHECKLIST:-$OUT/generated-checklist.jsonl}"
+CHECKLIST_MODEL="${CHECKLIST_MODEL:-gpt-oss-120b}"
 RUN_ID="${RUN_ID:-cfda-w5c}"
 TEAM_ID="${TEAM_ID:-cfda}"
 SIDECAR_URLS="${SIDECAR_URLS:-http://127.0.0.1:8765}"
@@ -48,6 +45,19 @@ if ! [[ "$RUN_ID" =~ ^[A-Za-z0-9._-]+$ ]]; then
   echo "RUN_ID must contain only letters, digits, dot, underscore, or hyphen" >&2
   exit 2
 fi
+
+if [[ -z "${CHECKLIST_REPLAY:-}" ]]; then
+  echo "Generating topic checklist with $CHECKLIST_MODEL"
+  "$PYTHON" tools/build_checklist.py \
+    --topics "$TOPICS" \
+    --output "$CHECKLIST" \
+    --model "$CHECKLIST_MODEL"
+else
+  CHECKLIST="$CHECKLIST_REPLAY"
+  [[ -s "$CHECKLIST" ]] || { echo "Missing replay checklist: $CHECKLIST" >&2; exit 1; }
+  echo "Replaying supplied checklist: $CHECKLIST"
+fi
+"$PYTHON" tools/validate_checklist.py "$TOPICS" "$CHECKLIST"
 
 mkdir -p "$OUT/.shards"
 

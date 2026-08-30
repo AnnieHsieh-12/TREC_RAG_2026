@@ -3,11 +3,11 @@ import { runFinalRagPipeline, type IterativeOptions } from "./runner";
 const USAGE = `Usage: npm run run:rag
 
 Required environment variables:
-  TOPICS, CHECKLIST
+  TOPICS
 
 Optional environment variables:
   QRELS_DIR, OUT, RUN_ID, TEAM_ID, SHARDS, SIDECAR_URLS, PYSERINI_TOKENS,
-  SUBMISSION_OUT, PYTHON`;
+  SUBMISSION_OUT, PYTHON, CHECKLIST_MODEL, CHECKLIST_REPLAY`;
 export function parse(
   argv: string[],
   env: NodeJS.ProcessEnv = process.env,

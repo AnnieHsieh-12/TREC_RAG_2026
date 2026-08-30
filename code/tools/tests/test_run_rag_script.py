@@ -18,9 +18,8 @@ class RunRagScriptTests(unittest.TestCase):
         )
         env = {
             **os.environ,
-            "OPENAI_API_KEY": "test-only",
             "TOPICS": str(topics),
-            "CHECKLIST": str(checklist),
+            "CHECKLIST_REPLAY": str(checklist),
             "OUT": str(root / "out"),
             "SUBMISSION_OUT": str(root / "submission"),
             **values,
@@ -49,6 +48,12 @@ class RunRagScriptTests(unittest.TestCase):
         script = SCRIPT.read_text(encoding="utf-8")
         self.assertNotIn("ANSWER_QUALITY_GATE=0", script)
         self.assertIn('REPLAY_OFFICIAL_W5C_REPAIR:-0', script)
+
+    def test_default_pipeline_generates_checklist_and_uses_codex(self):
+        script = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("tools/build_checklist.py", script)
+        self.assertIn('--llm-provider codex_llm', script)
+        self.assertNotIn(': "${CHECKLIST:?', script)
 
 
 if __name__ == "__main__":

@@ -236,20 +236,22 @@ pipeline writes `metrics.json`, `per_topic_metrics.json`, and
 `qrels_metadata.json`; the last file records each filename and SHA-256. Without
 qrels, the normal output is produced and these diagnostic files are omitted.
 
-### Checklist JSONL
+### Topic-derived checklist
 
-One JSON object per topic:
+The final RAG launcher first derives a facet checklist from each topic
+narrative with the configured NCHC model. It does not use qrels, judgments, or
+answer text. The generated checklist guides evidence sufficiency, follow-up
+queries, and dense answer structure. Each run stores it as
+`generated-checklist.jsonl` under its output directory.
+
+One generated JSON object per topic:
 
 ```json
 {"qid":"topic_id","items":["first aspect","second aspect"]}
 ```
 
 See [`examples/checklist.example.jsonl`](examples/checklist.example.jsonl).
-The frozen official 119-topic checklist is not redistributed. A newly generated
-checklist follows the same procedure but may not be byte-identical to the
-frozen model output.
-
-Generate a checklist from topics with the NCHC key in `sidecar/.env.local`:
+To generate a checklist separately for inspection:
 
 ```bash
 python code/tools/build_checklist.py \
@@ -345,12 +347,17 @@ Keep the sidecar running, then use another terminal:
 ```bash
 cd code
 TOPICS=/path/to/topics.tsv \
-CHECKLIST=/path/to/checklist.jsonl \
 SIDECAR_URLS=http://127.0.0.1:8765 \
 RUN_ID=cfda-w5c \
 TEAM_ID=cfda \
 npm run run:rag
 ```
+
+By default, this command generates the checklist from `TOPICS` using
+`gpt-oss-120b` before evidence acquisition begins. Set `CHECKLIST_MODEL` to an
+alternative NCHC model. For an explicit historical replay only, set
+`CHECKLIST_REPLAY=/path/to/frozen-checklist.jsonl`; ordinary runs should not
+supply a checklist.
 
 Set `QRELS_DIR=/path/to/development-qrels` to enable optional diagnostic
 metrics.
@@ -375,6 +382,8 @@ Optional environment variables:
 | `SUBMISSION_OUT` | Finalized submission directory; defaults to `out/submissions/$RUN_ID` |
 | `SHARDS` | Number of parallel topic shards; default `4` |
 | `SIDECAR_URLS` | Comma-separated sidecar URLs |
+| `CHECKLIST_MODEL` | NCHC model used to derive topic checklists; default `gpt-oss-120b` |
+| `CHECKLIST_REPLAY` | Optional frozen checklist used only for an explicit historical replay |
 | `PYSERINI_TOKENS` | Comma-separated tokens assigned across shards |
 | `QRELS_DIR` | Optional directory of development qrels |
 | `RUN_ID`, `TEAM_ID` | Run and team identifiers written to generated records |
