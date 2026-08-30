@@ -378,7 +378,6 @@ Optional environment variables:
 | `QRELS_DIR` | Optional directory of development qrels |
 | `RUN_ID`, `TEAM_ID` | Run and team identifiers written to generated records |
 | `OPENAI_MODEL` | OpenAI model used by the RAG agent; defaults to the frozen final-run model |
-| `ANSWER_MIN_WORDS` | Operational dense-answer quality gate; default `600` |
 | `PYTHON` | Python executable; default `python3` |
 | `REPLAY_OFFICIAL_W5C_REPAIR=1` | Replay the hash-gated archival repair only when reconstructing the frozen official W5c artifact |
 

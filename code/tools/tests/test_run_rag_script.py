@@ -55,12 +55,6 @@ class RunRagScriptTests(unittest.TestCase):
         self.assertIn('OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.6-sol}"', script)
         self.assertIn('--llm-model "$OPENAI_MODEL"', script)
 
-    def test_answer_min_words_must_be_positive(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            completed = self.run_with(Path(tmp), ANSWER_MIN_WORDS="0")
-            self.assertEqual(completed.returncode, 2)
-            self.assertIn("ANSWER_MIN_WORDS must be a positive integer", completed.stderr)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -583,8 +583,7 @@ async function processTopic(a: {
     );
     const cited = ragObject.answer.filter((s) => s.citations.length > 0).length;
     const ratio = ragObject.answer.length ? cited / ragObject.answer.length : 0;
-    const minWords = Number(process.env.ANSWER_MIN_WORDS || 600);
-    if (gw < minWords || ragObject.references.length === 0 || ratio < 0.8)
+    if (gw < 600 || ragObject.references.length === 0 || ratio < 0.8)
       throw new Error(
         `DEGRADED_ANSWER words=${gw} refs=${ragObject.references.length} cited_ratio=${ratio.toFixed(2)}`,
       );
@@ -836,8 +835,7 @@ async function answer(a: {
   let docs = [...a.readDocs.values()];
   const dense = a.style === "dense";
   const DENSE_DOCS = Number(process.env.DENSE_DOCS || 12),
-    DENSE_CHARS = Number(process.env.DENSE_CHARS || 2500),
-    ANSWER_MIN_WORDS = Number(process.env.ANSWER_MIN_WORDS || 600);
+    DENSE_CHARS = Number(process.env.DENSE_CHARS || 2500);
   if (dense && a.evidenceSelect === "setr" && docs.length > DENSE_DOCS) {
     docs = await setrSelect(a, docs, DENSE_DOCS);
   }
@@ -869,7 +867,7 @@ async function answer(a: {
       maxTokens: dense ? 8192 : 2048,
       validate: (value) =>
         validateAnswer(value, {
-          minWords: dense ? ANSWER_MIN_WORDS : 0,
+          minWords: dense ? 600 : 0,
           minCitedRatio: dense ? 0.8 : 0,
         }),
       stage: "answer_generation",
@@ -955,7 +953,13 @@ function validateAnswer(
   const numericCitations = answerItems.flatMap((item) =>
     isRecord(item) && Array.isArray(item.citations)
       ? item.citations
-          .map(citationOrdinal)
+          .map((citation) =>
+            Number.isInteger(citation)
+              ? Number(citation)
+              : typeof citation === "string" && /^\d+$/.test(citation)
+                ? Number(citation)
+                : null,
+          )
           .filter((citation): citation is number => citation !== null)
       : [],
   );
@@ -983,7 +987,11 @@ function validateAnswer(
     const citations = item.citations.map((citation) => {
       if (typeof citation === "string" && references.includes(citation))
         return references.indexOf(citation);
-      const numeric = citationOrdinal(citation) ?? -1;
+      const numeric = Number.isInteger(citation)
+        ? Number(citation)
+        : typeof citation === "string" && /^\d+$/.test(citation)
+          ? Number(citation)
+          : -1;
       return oneBasedCitations && numeric >= 1 ? numeric - 1 : numeric;
     });
     if (
@@ -1026,16 +1034,6 @@ function validateAnswer(
       answer: normalizedAnswer,
     },
   };
-}
-
-function citationOrdinal(citation: unknown): number | null {
-  if (Number.isInteger(citation)) return Number(citation);
-  if (typeof citation !== "string") return null;
-  const value = citation.trim();
-  const match =
-    /^\[?(\d+)\]?$/.exec(value) ??
-    /^(?:doc(?:ument)?|ref(?:erence)?)\s*#?\s*(\d+)$/i.exec(value);
-  return match ? Number(match[1]) : null;
 }
 
 function splitAnswerItem(text: string): string[] {

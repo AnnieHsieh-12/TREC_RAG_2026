@@ -39,7 +39,6 @@ OUT="${OUT:-$CODE_ROOT/out/final-rag}"
 RUN_ID="${RUN_ID:-cfda-w5c}"
 TEAM_ID="${TEAM_ID:-cfda}"
 OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.6-sol}"
-ANSWER_MIN_WORDS="${ANSWER_MIN_WORDS:-600}"
 SIDECAR_URLS="${SIDECAR_URLS:-http://127.0.0.1:8765}"
 SUBMISSION_OUT="${SUBMISSION_OUT:-$CODE_ROOT/out/submissions/$RUN_ID}"
 
@@ -49,10 +48,6 @@ if ! [[ "$SHARDS" =~ ^[1-9][0-9]*$ ]]; then
 fi
 if ! [[ "$RUN_ID" =~ ^[A-Za-z0-9._-]+$ ]]; then
   echo "RUN_ID must contain only letters, digits, dot, underscore, or hyphen" >&2
-  exit 2
-fi
-if ! [[ "$ANSWER_MIN_WORDS" =~ ^[1-9][0-9]*$ ]]; then
-  echo "ANSWER_MIN_WORDS must be a positive integer; got: $ANSWER_MIN_WORDS" >&2
   exit 2
 fi
 
@@ -90,7 +85,6 @@ run_entry() {
   fi
 
   DENSE_DOCS=60 DENSE_CHARS=1200 ANSWER_QUALITY_GATE=1 \
-  ANSWER_MIN_WORDS="$ANSWER_MIN_WORDS" \
   ./node_modules/.bin/tsx src/trec-rag-2026/rag-pipeline/run.ts \
     --run-id "$RUN_ID" \
     --output-dir "$OUT" \
