@@ -1827,9 +1827,6 @@ function recordAttempt(a: {
       attempt: a.attempt.attempt,
       success: a.attempt.success,
       error_code: a.attempt.errorCode,
-      validation_message: a.attempt.validationMessage
-        ? redact(a.attempt.validationMessage, a.env).slice(0, 300)
-        : undefined,
       provider: a.attempt.provider,
       model: a.attempt.model,
       latency_ms: a.attempt.latencyMs,

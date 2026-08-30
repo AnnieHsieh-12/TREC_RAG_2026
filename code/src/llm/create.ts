@@ -115,7 +115,6 @@ export async function generateJsonWithRetry<T>(
         result,
         false,
         "LLM_JSON_PARSE_FAILED",
-        firstFailure,
       );
       attemptTrace.push(trace);
       options.onAttempt?.(trace);
@@ -137,7 +136,6 @@ export async function generateJsonWithRetry<T>(
         result,
         false,
         "LLM_JSON_PARSE_FAILED",
-        firstFailure,
       );
       attemptTrace.push(trace);
       options.onAttempt?.(trace);
@@ -275,7 +273,6 @@ function buildAttemptTrace(
   result: LlmGenerateResult,
   success: boolean,
   errorCode?: string,
-  validationMessage?: string,
 ): LlmAttemptTrace {
   return {
     attempt,
@@ -284,7 +281,6 @@ function buildAttemptTrace(
     latencyMs: result.latencyMs,
     success,
     ...(errorCode ? { errorCode } : {}),
-    ...(validationMessage ? { validationMessage } : {}),
     outputChars: result.text.length,
     ...(result.requestId ? { requestId: result.requestId } : {}),
     ...(result.usage ? { usage: result.usage } : {}),
