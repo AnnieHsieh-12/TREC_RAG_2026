@@ -865,11 +865,7 @@ async function answer(a: {
       ],
       temperature: 0,
       maxTokens: dense ? 8192 : 2048,
-      validate: (value) =>
-        validateAnswer(value, {
-          minWords: dense ? 600 : 0,
-          minCitedRatio: dense ? 0.8 : 0,
-        }),
+      validate: validateAnswer,
       stage: "answer_generation",
       maxRequestRetries: 4,
       onAttempt: (attempt) =>
@@ -938,65 +934,11 @@ async function answer(a: {
     readDocids: new Set(a.readDocs.keys()),
   }).ragObject;
 }
-function validateAnswer(
-  v: unknown,
-  requirements: { minWords?: number; minCitedRatio?: number } = {},
-): LlmJsonValidationResult<AnswerDraft> {
+function validateAnswer(v: unknown): LlmJsonValidationResult<AnswerDraft> {
   if (!(isRecord(v) && Array.isArray(v.references) && Array.isArray(v.answer)))
     return { ok: false, message: "answer shape" };
-  const references = v.references as unknown[];
-  const answerItems = v.answer as unknown[];
-  if (answerItems.length === 0 || references.length === 0)
+  if (v.answer.length === 0 || v.references.length === 0)
     return { ok: false, message: "answer/references must be non-empty" };
-  if (!references.every((reference) => typeof reference === "string"))
-    return { ok: false, message: "every reference must be a docid string" };
-  let words = 0;
-  let cited = 0;
-  for (const [index, item] of answerItems.entries()) {
-    if (
-      !isRecord(item) ||
-      typeof item.text !== "string" ||
-      item.text.trim() === "" ||
-      !Array.isArray(item.citations)
-    )
-      return {
-        ok: false,
-        message: `answer[${index}] must contain text and a citations array`,
-      };
-    if (/[A-Za-z]{3,}[.!?]["')\]]*\s+(?=[A-Z0-9])/.test(item.text.trim()))
-      return {
-        ok: false,
-        message: `answer[${index}].text contains multiple sentences; split it into separate answer items and repeat the supporting citations for each`,
-      };
-    if (
-      item.citations.length > 3 ||
-      item.citations.some(
-        (citation) =>
-          !Number.isInteger(citation) ||
-          Number(citation) < 0 ||
-          Number(citation) >= references.length,
-      )
-    )
-      return {
-        ok: false,
-        message: `answer[${index}].citations must contain zero to three valid reference indices`,
-      };
-    words += item.text.trim().split(/\s+/).filter(Boolean).length;
-    if (item.citations.length > 0) cited += 1;
-  }
-  const minWords = requirements.minWords ?? 0;
-  if (words < minWords)
-    return {
-      ok: false,
-      message: `dense answer has ${words} words; expand it to at least ${minWords} words using additional supported atomic sentences`,
-    };
-  const ratio = cited / answerItems.length;
-  const minCitedRatio = requirements.minCitedRatio ?? 0;
-  if (ratio < minCitedRatio)
-    return {
-      ok: false,
-      message: `only ${ratio.toFixed(2)} of answer items are cited; cite at least ${minCitedRatio.toFixed(2)} using valid reference indices`,
-    };
   return { ok: true, value: v as AnswerDraft };
 }
 async function readNew(a: {
