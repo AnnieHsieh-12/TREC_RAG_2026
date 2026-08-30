@@ -43,7 +43,7 @@ test("final RAG pipeline completes without qrels", async () => {
               answer: [
                 {
                   text: "The documented fact is supported. Another documented fact is supported.",
-                  citations: [0],
+                  citations: [DOCID],
                 },
               ],
             });
