@@ -154,7 +154,6 @@ export function buildAspectAnswerPrompt(input: {
   documents: EvidenceDocumentForPrompt[];
   alreadyWritten?: string[];
   atomic?: { maxWords: number; sentences: number };
-  expectedFacts?: string[];
 }): string {
   const already =
     input.alreadyWritten && input.alreadyWritten.length > 0
@@ -164,20 +163,10 @@ export function buildAspectAnswerPrompt(input: {
           "",
         ].join("\n")
       : "";
-  const wanted =
-    input.expectedFacts && input.expectedFacts.length > 0
-      ? [
-          "What a complete answer is expected to state about this aspect (use as a checklist of what to LOOK FOR in the evidence):",
-          ...input.expectedFacts.map((f) => `  - ${f}`),
-          "Only write those of the above that the evidence actually supports, and write them with the evidence's own specifics. NEVER state one of them just because it is listed here — an unsupported sentence costs more than a missing one.",
-          "",
-        ].join("\n")
-      : "";
   return [
     "You write a few evidence-grounded sentences answering ONE specific aspect of a TREC RAG narrative.",
     "Use only the provided evidence documents. Do not use outside knowledge.",
     `Aspect to answer: ${input.aspect}`,
-    wanted,
     already,
     input.atomic
       ? `Write ${input.atomic.sentences} factual sentences that specifically answer this aspect.`
@@ -246,25 +235,13 @@ export function buildReflectionPrompt(
   ].join("\n");
 }
 
-export function buildAspectDecompositionPrompt(
-  topic: TopicIdentity,
-  expectedFacts = false,
-): string {
+export function buildAspectDecompositionPrompt(topic: TopicIdentity): string {
   return [
     "List every distinct aspect the following narrative asks about, so that together they cover the whole question.",
     "Return ONLY a strict JSON object, no prose:",
-    expectedFacts
-      ? '{"aspects":[{"title":"aspect one","expected_facts":["a fact a good answer would state","another fact"]}]}'
-      : '{"aspects":["aspect one","aspect two"]}',
+    '{"aspects":["aspect one","aspect two"]}',
     "Rules: 8-12 aspects; each a short noun phrase (3-10 words); split the narrative FINELY so each aspect maps to a distinct sub-question a good answer must address; cover every distinct thing asked; do not overlap; do not add aspects the narrative does not ask about.",
     "Prefer MORE, NARROWER aspects over few broad ones: the answer is scored on how many distinct required facts it covers, so a fine split gives each fact its own targeted evidence.",
-    ...(expectedFacts
-      ? [
-          "For each aspect also give 2-4 expected_facts: each a single short declarative sentence stating a fact a complete answer would state about that aspect.",
-          "expected_facts are what a good answer SHOULD say, written from the narrative alone - you have no evidence documents here, so state them as the kind of claim to look for, not as verified fact.",
-          "Make them specific and checkable (who did what, with what effect), not restatements of the aspect title.",
-        ]
-      : []),
     "",
     formatTopic(topic),
   ].join("\n");

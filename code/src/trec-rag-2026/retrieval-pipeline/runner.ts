@@ -178,7 +178,6 @@ const BASE_POLICY = {
   facet_depth: 1000,
   splice_head_keep: 200,
   aspect_decompose_max_tokens: 1500,
-  aspect_expected_facts: false,
   find_in_document: false,
   find_mode: "hybrid",
   find_max_passages: 6,
@@ -1391,9 +1390,6 @@ async function answerOneAspect(
                   aspect,
                   documents: [d],
                   alreadyWritten: out.map((s) => s.text),
-                  ...(expectedFacts.get(aspect)
-                    ? { expectedFacts: expectedFacts.get(aspect) }
-                    : {}),
                   ...(POLICY.atomic_sentences
                     ? {
                         atomic: {
@@ -1449,9 +1445,6 @@ async function answerOneAspect(
               aspect,
               documents: docs,
               alreadyWritten: out.map((s) => s.text),
-              ...(expectedFacts.get(aspect)
-                ? { expectedFacts: expectedFacts.get(aspect) }
-                : {}),
               ...(POLICY.atomic_sentences
                 ? {
                     atomic: {
@@ -1877,7 +1870,6 @@ async function groundedReviseAnswer(
     return null;
   }
 }
-const expectedFacts = new Map<string, string[]>();
 async function decomposeAspects(a: {
   topic: TopicIdentity;
   llm: LlmClient;
@@ -1892,10 +1884,7 @@ async function decomposeAspects(a: {
         messages: [
           {
             role: "user",
-            content: buildAspectDecompositionPrompt(
-              a.topic,
-              POLICY.aspect_expected_facts,
-            ),
+            content: buildAspectDecompositionPrompt(a.topic),
           },
         ],
         temperature: 0,
@@ -1909,17 +1898,12 @@ async function decomposeAspects(a: {
         const parsed = JSON.parse(j);
         const arr = Array.isArray(parsed?.aspects) ? parsed.aspects : [];
         const out: string[] = [];
-        expectedFacts.clear();
         for (const x of arr) {
           const title = (
             typeof x === "string" ? x : String(x?.title ?? "")
           ).trim();
           if (!title) continue;
           out.push(title);
-          const ef = Array.isArray(x?.expected_facts)
-            ? x.expected_facts.map((f: any) => String(f).trim()).filter(Boolean)
-            : [];
-          if (ef.length > 0) expectedFacts.set(title, ef);
           if (out.length >= POLICY.aspect_max) break;
         }
         if (out.length > 0) return out;
