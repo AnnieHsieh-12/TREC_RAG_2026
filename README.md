@@ -176,17 +176,17 @@ Configure:
 
 | File | Required values |
 | --- | --- |
-| `code/.env.local` | `NCHC_API_KEY`, `PYSERINI_API_TOKEN`, `OPENAI_API_KEY` |
+| `code/.env.local` | `NCHC_API_KEY`, `PYSERINI_API_TOKEN` |
 | `sidecar/.env.local` | `PYSERINI_API_TOKEN`, `NCHC_API_KEY` |
 
 `SIDECAR_URL` defaults to `http://127.0.0.1:8765`. The server port can be
 changed with `SIDECAR_PORT`; use matching values when changing it.
 
-### Optional local Codex backend
+### Codex authentication for the final RAG pipeline
 
-The Python service also includes an optional Codex CLI adapter for local
-experimentation. It is not used by the final pipeline. To enable it,
-authenticate Codex on the machine running the service:
+The final RAG pipeline sends its query-planning and answer-writing calls to
+the local sidecar, which invokes Codex CLI. Authenticate Codex on the machine
+running the service:
 
 ```bash
 npm install --global @openai/codex
@@ -282,7 +282,8 @@ are:
 - select relevant passages from full documents;
 - retrieve sentence-level evidence for verification and citation ordering.
 
-The `/llm` Codex bridge is optional and is not selected by the final scripts.
+The `/llm` Codex bridge is selected by the final RAG launcher. Retrieval and
+passage endpoints remain local, deterministic sidecar services.
 
 ## Run the final Retrieval pipeline
 

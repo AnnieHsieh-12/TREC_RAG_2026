@@ -20,7 +20,6 @@ if [[ -f .env.local ]]; then
   set +a
 fi
 
-: "${OPENAI_API_KEY:?Set OPENAI_API_KEY or create code/.env.local}"
 : "${TOPICS:?Set TOPICS to the input topics TSV}"
 : "${CHECKLIST:?Set CHECKLIST to the topic checklist JSONL}"
 
@@ -93,7 +92,7 @@ run_entry() {
     --team-id "$TEAM_ID" \
     --resume \
     --sidecar-url "${SIDECARS[$((shard_id % SIDECAR_COUNT))]}" \
-    --llm-provider openai_llm \
+    --llm-provider codex_llm \
     --llm-model gpt-5.6-sol \
     --layer-rerank --layer-passages \
     --layer-checklist "$CHECKLIST" \

@@ -3,7 +3,7 @@ import { runFinalRagPipeline, type IterativeOptions } from "./runner";
 const USAGE = `Usage: npm run run:rag
 
 Required environment variables:
-  TOPICS, CHECKLIST, OPENAI_API_KEY
+  TOPICS, CHECKLIST
 
 Optional environment variables:
   QRELS_DIR, OUT, RUN_ID, TEAM_ID, SHARDS, SIDECAR_URLS, PYSERINI_TOKENS,
