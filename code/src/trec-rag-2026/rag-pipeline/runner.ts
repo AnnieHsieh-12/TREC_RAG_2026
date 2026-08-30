@@ -964,31 +964,24 @@ function validateAnswer(
         ok: false,
         message: `answer[${index}] must contain text and a citations array`,
       };
-    const citations = item.citations.map((citation) =>
-      typeof citation === "string"
-        ? references.indexOf(citation)
-        : Number.isInteger(citation)
-          ? Number(citation)
-          : -1,
-    );
     if (
-      citations.length > 3 ||
-      citations.some(
-        (citation) => citation < 0 || citation >= references.length,
+      item.citations.length > 3 ||
+      item.citations.some(
+        (citation) =>
+          !Number.isInteger(citation) ||
+          Number(citation) < 0 ||
+          Number(citation) >= references.length,
       )
     )
       return {
         ok: false,
-        message: `answer[${index}].citations must contain zero to three valid reference indices or exact referenced docids`,
+        message: `answer[${index}].citations must contain zero to three valid reference indices`,
       };
-    const uniqueCitations = [...new Set(citations)];
+    const citations = item.citations as number[];
     for (const sentence of splitAnswerItem(item.text)) {
-      normalizedAnswer.push({
-        text: sentence,
-        citations: uniqueCitations,
-      });
+      normalizedAnswer.push({ text: sentence, citations: [...citations] });
       words += sentence.split(/\s+/).filter(Boolean).length;
-      if (uniqueCitations.length > 0) cited += 1;
+      if (citations.length > 0) cited += 1;
     }
   }
   const minWords = requirements.minWords ?? 0;
