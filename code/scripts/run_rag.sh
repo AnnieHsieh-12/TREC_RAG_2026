@@ -38,7 +38,6 @@ SHARDS="${SHARDS:-4}"
 OUT="${OUT:-$CODE_ROOT/out/final-rag}"
 RUN_ID="${RUN_ID:-cfda-w5c}"
 TEAM_ID="${TEAM_ID:-cfda}"
-OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.6-sol}"
 SIDECAR_URLS="${SIDECAR_URLS:-http://127.0.0.1:8765}"
 SUBMISSION_OUT="${SUBMISSION_OUT:-$CODE_ROOT/out/submissions/$RUN_ID}"
 
@@ -95,7 +94,7 @@ run_entry() {
     --resume \
     --sidecar-url "${SIDECARS[$((shard_id % SIDECAR_COUNT))]}" \
     --llm-provider openai_llm \
-    --llm-model "$OPENAI_MODEL" \
+    --llm-model gpt-5.6-sol \
     --layer-rerank --layer-passages \
     --layer-checklist "$CHECKLIST" \
     --layer-verify --verify-mode weaken \

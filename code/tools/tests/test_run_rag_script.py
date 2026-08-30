@@ -50,11 +50,6 @@ class RunRagScriptTests(unittest.TestCase):
         self.assertNotIn("ANSWER_QUALITY_GATE=0", script)
         self.assertIn('REPLAY_OFFICIAL_W5C_REPAIR:-0', script)
 
-    def test_openai_model_can_be_overridden(self):
-        script = SCRIPT.read_text(encoding="utf-8")
-        self.assertIn('OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.6-sol}"', script)
-        self.assertIn('--llm-model "$OPENAI_MODEL"', script)
-
 
 if __name__ == "__main__":
     unittest.main()
