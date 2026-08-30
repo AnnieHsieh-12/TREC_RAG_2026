@@ -244,6 +244,10 @@ answer text. The generated checklist guides evidence sufficiency, follow-up
 queries, and dense answer structure. Each run stores it as
 `generated-checklist.jsonl` under its output directory.
 
+The generator emits only topic-derived aspect titles and vital/okay priority.
+It does not predict facts before retrieval; factual claims are obtained from
+ClimbMix evidence during the agent loop.
+
 One generated JSON object per topic:
 
 ```json

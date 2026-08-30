@@ -22,15 +22,13 @@ answer must cover. Return strict JSON with exactly this shape:
 
 {{"sub_aspects": [
   {{"title": "<short noun-phrase name of the aspect, 3-8 words>",
-    "importance": "vital" | "okay",
-    "expected_facts": ["<one-sentence fact a good answer would state>", ...]}}
+    "importance": "vital" | "okay"}}
 ]}}
 
 Rules:
 - 5 to 12 sub_aspects, mutually distinct (no overlapping or duplicate aspects).
 - "vital" = the narrative explicitly asks about it or an answer omitting it
   would clearly be incomplete; "okay" = secondary/supporting aspect.
-- 2 to 4 expected_facts per aspect, each a single short declarative sentence.
 - Titles must be specific to this narrative, not generic ("Economic impact of
   X on Y", not "Impacts").
 - JSON only. No text before or after."""
@@ -66,22 +64,18 @@ def _validate_sub_aspects(obj):
     for a in aspects:
         title = (a.get("title") or "").strip()
         importance = a.get("importance")
-        facts = a.get("expected_facts")
         if not title:
             raise ValueError(f"aspect missing title: {a}")
         if importance not in ("vital", "okay"):
             importance = "okay"
-        if not isinstance(facts, list) or not facts:
-            facts = [title]
-        cleaned.append({"title": title, "importance": importance,
-                        "expected_facts": [str(f).strip() for f in facts if str(f).strip()]})
+        cleaned.append({"title": title, "importance": importance})
     return cleaned
 
 
 def generate_checklist(qid, narrative, nchc_client, model, max_attempts=3):
     """One LLM call (with parse-failure retries): narrative -> sub-aspect
-    checklist, returned as an official-nugget-format dict:
-    {"qid": qid, "nuggets": [{"text", "mapped_sub_narrative", "importance"}]}.
+    checklist, returned in the format consumed by the RAG controller:
+    {"qid": qid, "items": ["aspect (vital)", "secondary aspect"]}.
     Raises the last error if all attempts fail - callers decide whether a
     missing checklist is fatal for their run."""
     last_error = None
@@ -98,17 +92,13 @@ def generate_checklist(qid, narrative, nchc_client, model, max_attempts=3):
             )
             reply = result["choices"][0]["message"].get("content") or ""
             aspects = _validate_sub_aspects(_extract_json(reply))
-            nuggets = []
-            for a in aspects:
-                for fact in a["expected_facts"]:
-                    nuggets.append({
-                        "text": fact,
-                        # quoted to match the official file's convention
-                        # (load_coverage_items strips the quotes either way)
-                        "mapped_sub_narrative": f"\"{a['title']}\"",
-                        "importance": a["importance"],
-                    })
-            return {"qid": qid, "nuggets": nuggets}
+            return {
+                "qid": qid,
+                "items": [
+                    a["title"] + (" (vital)" if a["importance"] == "vital" else "")
+                    for a in aspects
+                ],
+            }
         except Exception as e:  # parse errors and malformed replies retried
             last_error = e
             print(f"  [checklist] qid {qid} attempt {attempt + 1} failed: {e}")
@@ -120,7 +110,7 @@ def generate_checklist(qid, narrative, nchc_client, model, max_attempts=3):
 def generate_checklists_file(topics, output_path, nchc_client, model,
                              pause_seconds=2):
     """Generate checklists for [(qid, narrative), ...] into one JSONL file
-    (official nugget file format, one line per topic). Resumable: topics whose
+    (controller checklist format, one line per topic). Resumable: topics whose
     qid already appears in the output file are skipped."""
     import os
     import time
@@ -142,13 +132,11 @@ def generate_checklists_file(topics, output_path, nchc_client, model,
             if qid in done:
                 continue
             record = generate_checklist(qid, narrative, nchc_client, model)
-            subs = {n["mapped_sub_narrative"] for n in record["nuggets"]}
-            vitals = {n["mapped_sub_narrative"] for n in record["nuggets"]
-                      if n["importance"] == "vital"}
             out.write(json.dumps(record, ensure_ascii=False) + "\n")
             out.flush()
             written += 1
-            print(f"  qid {qid}: {len(subs)} sub-aspects "
-                  f"({len(vitals)} vital), {len(record['nuggets'])} facts")
+            vital_count = sum(item.endswith(" (vital)") for item in record["items"])
+            print(f"  qid {qid}: {len(record['items'])} sub-aspects "
+                  f"({vital_count} vital)")
             time.sleep(pause_seconds)
     print(f"Wrote {written} new checklist(s) to {output_path}")
