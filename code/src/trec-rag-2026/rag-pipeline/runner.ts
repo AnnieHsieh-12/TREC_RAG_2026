@@ -928,11 +928,7 @@ async function answer(a: {
     references: draft.value.references,
     answer: draft.value.answer,
   };
-  return normalizeRagOutputObjectReferences(full, {
-    config: a.cfg,
-    topic: a.topic,
-    readDocids: new Set(a.readDocs.keys()),
-  }).ragObject;
+  return trimToWordCap(full, a.cfg, a.topic, new Set(a.readDocs.keys()), 1020);
 }
 function validateAnswer(v: unknown): LlmJsonValidationResult<AnswerDraft> {
   if (!(isRecord(v) && Array.isArray(v.references) && Array.isArray(v.answer)))
@@ -1263,7 +1259,7 @@ async function orderCitationsByStrength(
   });
   return { ...rag, answer };
 }
-function trimToWordCap(
+export function trimToWordCap(
   rag: AgenticRagOutputObject,
   cfg: RagRunConfig,
   topic: TopicIdentity,
@@ -1279,6 +1275,15 @@ function trimToWordCap(
   while (answer.length > 1 && total > cap) {
     const last = answer.pop()!;
     total -= last.text.split(/\s+/).filter(Boolean).length;
+  }
+  if (total > cap && answer.length === 1) {
+    const words = answer[0].text.split(/\s+/).filter(Boolean).slice(0, cap);
+    let text = words
+      .join(" ")
+      .replace(/[,;:\-\u2013\u2014]+$/, "")
+      .trim();
+    if (text && !/[.!?]["')\]]?$/.test(text)) text += ".";
+    answer[0] = { ...answer[0], text };
   }
   const full: AgenticRagOutputObject = {
     metadata: rag.metadata,
