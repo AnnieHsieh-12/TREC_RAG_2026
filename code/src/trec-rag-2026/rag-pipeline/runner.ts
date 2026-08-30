@@ -952,7 +952,6 @@ function validateAnswer(
     return { ok: false, message: "every reference must be a docid string" };
   let words = 0;
   let cited = 0;
-  const normalizedAnswer: AnswerDraft["answer"] = [];
   for (const [index, item] of answerItems.entries()) {
     if (
       !isRecord(item) ||
@@ -963,6 +962,11 @@ function validateAnswer(
       return {
         ok: false,
         message: `answer[${index}] must contain text and a citations array`,
+      };
+    if (/[A-Za-z]{3,}[.!?]["')\]]*\s+(?=[A-Z0-9])/.test(item.text.trim()))
+      return {
+        ok: false,
+        message: `answer[${index}].text contains multiple sentences; split it into separate answer items and repeat the supporting citations for each`,
       };
     if (
       item.citations.length > 3 ||
@@ -977,12 +981,8 @@ function validateAnswer(
         ok: false,
         message: `answer[${index}].citations must contain zero to three valid reference indices`,
       };
-    const citations = item.citations as number[];
-    for (const sentence of splitAnswerItem(item.text)) {
-      normalizedAnswer.push({ text: sentence, citations: [...citations] });
-      words += sentence.split(/\s+/).filter(Boolean).length;
-      if (citations.length > 0) cited += 1;
-    }
+    words += item.text.trim().split(/\s+/).filter(Boolean).length;
+    if (item.citations.length > 0) cited += 1;
   }
   const minWords = requirements.minWords ?? 0;
   if (words < minWords)
@@ -990,29 +990,14 @@ function validateAnswer(
       ok: false,
       message: `dense answer has ${words} words; expand it to at least ${minWords} words using additional supported atomic sentences`,
     };
-  const ratio = cited / normalizedAnswer.length;
+  const ratio = cited / answerItems.length;
   const minCitedRatio = requirements.minCitedRatio ?? 0;
   if (ratio < minCitedRatio)
     return {
       ok: false,
       message: `only ${ratio.toFixed(2)} of answer items are cited; cite at least ${minCitedRatio.toFixed(2)} using valid reference indices`,
     };
-  return {
-    ok: true,
-    value: {
-      references: references as string[],
-      answer: normalizedAnswer,
-    },
-  };
-}
-
-function splitAnswerItem(text: string): string[] {
-  return text
-    .trim()
-    .replace(/([A-Za-z]{3,}[.!?]["')\]]*)\s+(?=[A-Z0-9])/g, "$1\u0000")
-    .split("\u0000")
-    .map((sentence) => sentence.trim())
-    .filter(Boolean);
+  return { ok: true, value: v as AnswerDraft };
 }
 async function readNew(a: {
   o: IterativeOptions;

@@ -41,10 +41,7 @@ test("final RAG pipeline completes without qrels", async () => {
           : JSON.stringify({
               references: [DOCID],
               answer: [
-                {
-                  text: "The documented fact is supported. Another documented fact is supported.",
-                  citations: [0],
-                },
+                { text: "The documented fact is supported.", citations: [0] },
               ],
             });
       return jsonResponse({ choices: [{ message: { content } }] });
@@ -93,9 +90,7 @@ test("final RAG pipeline completes without qrels", async () => {
       .map((line) => JSON.parse(line));
     assert.equal(rows.length, 1);
     assert.deepEqual(rows[0].references, [DOCID]);
-    assert.equal(rows[0].answer.length, 2);
     assert.deepEqual(rows[0].answer[0].citations, [0]);
-    assert.deepEqual(rows[0].answer[1].citations, [0]);
     assert.equal(existsSync(join(output, "metrics.json")), false);
     assert.equal(existsSync(join(output, "per_topic_metrics.json")), false);
 
