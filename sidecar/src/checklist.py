@@ -29,6 +29,11 @@ Rules:
 - 5 to 12 sub_aspects, mutually distinct (no overlapping or duplicate aspects).
 - "vital" = the narrative explicitly asks about it or an answer omitting it
   would clearly be incomplete; "okay" = secondary/supporting aspect.
+- Every explicitly named domain, decision, comparison, time period, or
+  requested output structure in the narrative must appear in at least one
+  sub_aspect and must be marked "vital".
+- Do not merge explicitly named requirements when merging could hide whether
+  each requirement is covered; prefer separate, specific sub_aspects.
 - Titles must be specific to this narrative, not generic ("Economic impact of
   X on Y", not "Impacts").
 - JSON only. No text before or after."""

@@ -47,6 +47,14 @@ class ChecklistGeneratorTests(unittest.TestCase):
             },
         )
         self.assertNotIn("expected_facts", checklist_generator.DECOMPOSE_USER_TEMPLATE)
+        self.assertIn(
+            "Every explicitly named domain",
+            checklist_generator.DECOMPOSE_USER_TEMPLATE,
+        )
+        self.assertIn(
+            'must be marked "vital"',
+            checklist_generator.DECOMPOSE_USER_TEMPLATE,
+        )
 
 
 if __name__ == "__main__":
