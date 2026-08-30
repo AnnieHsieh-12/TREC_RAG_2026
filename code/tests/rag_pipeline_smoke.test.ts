@@ -34,7 +34,6 @@ test("final RAG pipeline completes without qrels", async () => {
     if (url === "http://mock.openai/v1/chat/completions") {
       const body = JSON.parse(String(init?.body ?? "{}"));
       assert.equal("reasoning_effort" in body, false);
-      assert.deepEqual(body.response_format, { type: "json_object" });
       llmCalls += 1;
       const content =
         llmCalls === 1

@@ -950,26 +950,6 @@ function validateAnswer(
     return { ok: false, message: "answer/references must be non-empty" };
   if (!references.every((reference) => typeof reference === "string"))
     return { ok: false, message: "every reference must be a docid string" };
-  const numericCitations = answerItems.flatMap((item) =>
-    isRecord(item) && Array.isArray(item.citations)
-      ? item.citations
-          .map((citation) =>
-            Number.isInteger(citation)
-              ? Number(citation)
-              : typeof citation === "string" && /^\d+$/.test(citation)
-                ? Number(citation)
-                : null,
-          )
-          .filter((citation): citation is number => citation !== null)
-      : [],
-  );
-  const oneBasedCitations =
-    numericCitations.length > 0 &&
-    !numericCitations.includes(0) &&
-    numericCitations.every(
-      (citation) => citation >= 1 && citation <= references.length,
-    ) &&
-    numericCitations.includes(references.length);
   let words = 0;
   let cited = 0;
   const normalizedAnswer: AnswerDraft["answer"] = [];
@@ -984,16 +964,13 @@ function validateAnswer(
         ok: false,
         message: `answer[${index}] must contain text and a citations array`,
       };
-    const citations = item.citations.map((citation) => {
-      if (typeof citation === "string" && references.includes(citation))
-        return references.indexOf(citation);
-      const numeric = Number.isInteger(citation)
-        ? Number(citation)
-        : typeof citation === "string" && /^\d+$/.test(citation)
+    const citations = item.citations.map((citation) =>
+      typeof citation === "string"
+        ? references.indexOf(citation)
+        : Number.isInteger(citation)
           ? Number(citation)
-          : -1;
-      return oneBasedCitations && numeric >= 1 ? numeric - 1 : numeric;
-    });
+          : -1,
+    );
     if (
       citations.length > 3 ||
       citations.some(
