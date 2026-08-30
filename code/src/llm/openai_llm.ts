@@ -59,6 +59,9 @@ export class OpenAiLlmClient implements LlmClient {
             content: m.content,
           })),
           max_completion_tokens: options.maxTokens,
+          ...(options.responseFormat === "json_object"
+            ? { response_format: { type: "json_object" } }
+            : {}),
           ...(usesReasoningEffort(this.model)
             ? { reasoning_effort: "none" }
             : {}),
