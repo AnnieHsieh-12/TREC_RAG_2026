@@ -64,8 +64,8 @@ export const FINAL_POLICY: PolicyOverride = {
 
 export const FINAL_MODELS = {
   base: "gpt-oss-120b",
-  writer: "openai:gpt-5.6-sol",
-  query: "openai:gpt-5.6-sol",
+  writer: "codex:gpt-5.6-sol",
+  query: "codex:gpt-5.6-sol",
 };
 
 const USAGE = `Usage: npm run run:retrieval -- [options]

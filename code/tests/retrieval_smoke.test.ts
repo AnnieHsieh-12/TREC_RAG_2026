@@ -10,10 +10,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { FINAL_POLICY } from "../config/final_pipeline";
+import { FINAL_MODELS, FINAL_POLICY } from "../config/final_pipeline";
 import { runFinalRetrievalPipeline } from "../src/trec-rag-2026/retrieval-pipeline/runner";
 
 const DOCID = "shard_00999_42";
+
+test("final Retrieval query and writer models use the Codex sidecar", () => {
+  assert.equal(FINAL_MODELS.base, "gpt-oss-120b");
+  assert.equal(FINAL_MODELS.query, "codex:gpt-5.6-sol");
+  assert.equal(FINAL_MODELS.writer, "codex:gpt-5.6-sol");
+});
 
 test("final Retrieval orchestration completes one mocked topic", async () => {
   const root = mkdtempSync(join(tmpdir(), "cfda-retrieval-smoke-"));

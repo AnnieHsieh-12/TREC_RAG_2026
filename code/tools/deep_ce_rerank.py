@@ -13,21 +13,53 @@ evidence outside that prefix cannot affect its score.
 """
 import argparse
 import collections
+import concurrent.futures
 import glob
 import hashlib
 import json
 import math
 import os
 import statistics
+import tempfile
+import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 
 MODEL = "cross-encoder/ms-marco-MiniLM-L6-v2"
+CODE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def load_local_env(path):
+    """Load simple KEY=VALUE entries without printing or overwriting env."""
+    try:
+        with open(path, encoding="utf-8") as env_file:
+            for raw in env_file:
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key, value = key.strip(), value.strip()
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                    value = value[1:-1]
+                if key and value:
+                    os.environ.setdefault(key, value)
+    except FileNotFoundError:
+        pass
+
+
+load_local_env(os.path.join(CODE_ROOT, ".env.local"))
 INDEX = os.environ.get("PYSERINI_INDEX", "climbmix-400b")
 CACHE = os.environ.get("DOC_CACHE_DIR", os.path.join(".cache", "docs"))
+BASE_URL = os.environ.get("PYSERINI_BASE_URL", "http://api.castorini.uwaterloo.ca")
 QD = os.environ.get(
     "QRELS_DIR",
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "qrels")),
 )
 RRF_K = 60
+_fetch_lock = threading.Lock()
+_last_fetch_at = 0.0
 
 
 def cache_path(docid: str) -> str:
@@ -44,6 +76,127 @@ def read_doc(docid: str) -> str:
         return v.get("text", "") if v.get("found") else ""
     except Exception:
         return ""
+
+
+def write_doc(docid, found, text):
+    path = cache_path(docid)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=os.path.dirname(path), delete=False
+        ) as output:
+            temporary = output.name
+            json.dump({"found": bool(found), "text": text if found else ""}, output)
+        os.replace(temporary, path)
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def extract_text(doc):
+    if isinstance(doc, str):
+        return doc
+    if isinstance(doc, dict) and isinstance(doc.get("text"), str):
+        return doc["text"]
+    return json.dumps(doc if doc is not None else "", ensure_ascii=False)
+
+
+def pace_fetch(seconds):
+    global _last_fetch_at
+    if seconds <= 0:
+        return
+    with _fetch_lock:
+        now = time.monotonic()
+        wait = _last_fetch_at + seconds - now
+        if wait > 0:
+            time.sleep(wait)
+            now = time.monotonic()
+        _last_fetch_at = now
+
+
+def fetch_doc(docid, token, pace_seconds=0.1, max_retries=8):
+    """Fetch one missing document and populate the shared TypeScript cache."""
+    if read_doc(docid):
+        return True
+    url = (
+        f"{BASE_URL.rstrip('/')}/v1/{urllib.parse.quote(INDEX, safe='')}/doc/"
+        f"{urllib.parse.quote(docid, safe='')}?parse=true"
+    )
+    for attempt in range(1, max_retries + 1):
+        pace_fetch(pace_seconds)
+        request = urllib.request.Request(
+            url, headers={"Authorization": f"Bearer {token}"}
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            text = extract_text(payload.get("doc"))
+            if not text:
+                return False
+            write_doc(docid, True, text)
+            return True
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                write_doc(docid, False, "")
+                return False
+            if error.code not in (429, 500, 502, 503, 504) or attempt == max_retries:
+                return False
+            retry_after = error.headers.get("Retry-After")
+            delay = float(retry_after) if retry_after and retry_after.isdigit() else 0
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+            if attempt == max_retries:
+                return False
+            delay = 0
+        time.sleep(max(delay, min(60, 2 ** (attempt - 1))))
+    return False
+
+
+def prefetch_missing(pool, depth, head, token, workers, pace_seconds):
+    needed = []
+    seen = set()
+    for qid in pool:
+        for docid, _ in pool[qid][head:depth]:
+            if docid not in seen and not read_doc(docid):
+                seen.add(docid)
+                needed.append(docid)
+    if not needed:
+        return
+    if not token:
+        raise RuntimeError(
+            "PYSERINI_API_TOKEN is required to fetch uncached deep-tail documents"
+        )
+    print(f"Prefetching {len(needed):,} uncached deep-tail documents...", flush=True)
+    completed = 0
+    fetched = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(fetch_doc, docid, token, pace_seconds): docid
+            for docid in needed
+        }
+        for future in concurrent.futures.as_completed(futures):
+            completed += 1
+            try:
+                fetched += int(future.result())
+            except Exception:
+                pass
+            if completed % 250 == 0 or completed == len(needed):
+                print(
+                    f"  fetched {fetched:,}/{completed:,}; "
+                    f"remaining {len(needed) - completed:,}",
+                    flush=True,
+                )
+
+
+def require_coverage(scored, missing, max_missing_fraction):
+    total = scored + missing
+    fraction = missing / max(1, total)
+    if fraction > max_missing_fraction:
+        raise RuntimeError(
+            f"deep rerank aborted: missing text {missing:,}/{total:,} "
+            f"({fraction:.1%}) exceeds --max-missing-fraction "
+            f"{max_missing_fraction:.1%}"
+        )
 
 
 def load_pool(run: str):
@@ -136,7 +289,18 @@ def main():
     )
     ap.add_argument("--out", default="")
     ap.add_argument("--variant", default="", help="select a variant such as 'RRF 1:1' without qrels evaluation")
+    ap.add_argument("--fetch-workers", type=int, default=4)
+    ap.add_argument("--fetch-pace", type=float, default=0.1)
+    ap.add_argument("--max-missing-fraction", type=float, default=0.01)
+    ap.add_argument("--no-fetch-missing", action="store_true")
     args = ap.parse_args()
+
+    if args.fetch_workers < 1:
+        ap.error("--fetch-workers must be positive")
+    if args.fetch_pace < 0:
+        ap.error("--fetch-pace must be non-negative")
+    if not 0 <= args.max_missing_fraction <= 1:
+        ap.error("--max-missing-fraction must be between 0 and 1")
 
     try:
         import torch
@@ -150,6 +314,15 @@ def main():
     pool = load_pool(args.run)
     narr = load_narratives(args.run)
     qrels = load_qrels()
+    if not args.no_fetch_missing:
+        prefetch_missing(
+            pool,
+            args.depth,
+            args.head,
+            os.environ.get("PYSERINI_API_TOKEN", "").strip(),
+            args.fetch_workers,
+            args.fetch_pace,
+        )
 
     if args.device == "auto":
         if torch.cuda.is_available():
@@ -196,6 +369,7 @@ def main():
 
     print(f"\nReranked {scored_total:,} documents; missing text {missing_total:,} "
           f"({missing_total / max(1, scored_total + missing_total):.1%})\n")
+    require_coverage(scored_total, missing_total, args.max_missing_fraction)
 
     variants = {}
     for label, w_pool, w_ce in [("Original pool", 1.0, 0.0),

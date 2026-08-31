@@ -82,6 +82,8 @@ For each narrative, the Retrieval pipeline:
 
 The selected Retrieval policy is defined in
 [`code/config/final_pipeline.ts`](code/config/final_pipeline.ts).
+Its sufficiency judge uses NCHC `gpt-oss-120b`; query generation and answer-side
+reflection use `gpt-5.6-sol` through the authenticated local Codex sidecar.
 
 ## Bounded RAG pipeline
 
@@ -304,6 +306,10 @@ npm run run:retrieval -- \
   --topics /path/to/topics.tsv
 ```
 
+Keep the local sidecar running during this stage. The final policy uses it for
+Codex-backed query generation and answer-side reflection; no direct OpenAI API
+key is required.
+
 Add `--qrels-dir /path/to/development-qrels` only when diagnostic metrics are
 required.
 
@@ -328,6 +334,13 @@ python tools/deep_ce_rerank.py out/cfda-retrieval \
   --device auto \
   --out out/cfda-retrieval/deepce
 ```
+
+The deep-tail stage reads the shared document cache and fetches any uncached
+rank-101--3,000 documents from the configured ClimbMix API before scoring.
+It refuses to write an output when more than 1% of the requested document text
+remains unavailable. Fetch concurrency, pacing, and the safety threshold are
+configurable with `--fetch-workers`, `--fetch-pace`, and
+`--max-missing-fraction`.
 
 ### 3. Build the two Retrieval outputs
 
