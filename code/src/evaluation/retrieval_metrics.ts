@@ -164,7 +164,7 @@ export function writeRunFile(
     const entries = rankings.get(queryId) ?? [];
     for (const [index, entry] of entries.entries()) {
       lines.push(
-        `${queryId} Q0 ${entry.docid} ${index + 1} ${entry.score.toFixed(6)} pi-serini`,
+        `${queryId} Q0 ${entry.docid} ${index + 1} ${entry.score.toFixed(6)} example-team`,
       );
     }
   }

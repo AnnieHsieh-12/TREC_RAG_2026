@@ -16,7 +16,7 @@ import {
  * on historical experiment wrappers.
  */
 export const FINAL_POLICY: PolicyOverride = {
-  retrieval_policy: "VFs-vf-with-sol-writing",
+  retrieval_policy: "cfda-final-retrieval",
 
   // Retrieval and candidate construction.
   output_depth: 5000,

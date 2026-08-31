@@ -283,7 +283,7 @@ They contain fictional IDs and are not competition submissions.
 ## Start the local neural service
 
 The bounded RAG pipeline calls a small local Python service (the `sidecar`) for
-GPU-backed reranking and evidence processing. Start it in a separate terminal
+neural reranking and evidence processing. Start it in a separate terminal
 from the repository root:
 
 ```bash
@@ -363,8 +363,8 @@ bash scripts/build_retrieval_submissions.sh
 Default outputs:
 
 ```text
-code/out/retrieval-submissions/cfda-vfs-unc/r_output_trec_rag_2026.tsv
-code/out/retrieval-submissions/cfda-vfs-deep/r_output_trec_rag_2026.tsv
+code/out/retrieval-submissions/cfda-final-unc/r_output_trec_rag_2026.tsv
+code/out/retrieval-submissions/cfda-final-deep/r_output_trec_rag_2026.tsv
 ```
 
 ## Run the final bounded RAG pipeline

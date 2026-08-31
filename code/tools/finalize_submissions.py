@@ -37,7 +37,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--retrieval", type=Path)
     parser.add_argument("--rag", type=Path)
-    parser.add_argument("--retrieval-tag", default="cfda-vfs-deep")
+    parser.add_argument("--retrieval-tag", default="cfda-final-deep")
     parser.add_argument("--team-id", default="cfda")
     parser.add_argument("--rag-tag", default="cfda-w5c")
     parser.add_argument("--outdir", required=True, type=Path)

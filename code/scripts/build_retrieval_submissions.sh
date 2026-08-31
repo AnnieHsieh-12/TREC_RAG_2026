@@ -15,8 +15,8 @@ PYTHON="${PYTHON:-python3}"
 POOL="${POOL:-$RUN_DIR/candidate_pool_top5000.trec}"
 DEEP_POOL="${DEEP_POOL:-$RUN_DIR/deepce/candidate_pool_top5000.trec}"
 OUT="${OUT:-$CODE_ROOT/out/retrieval-submissions}"
-UNC_TAG="${UNC_TAG:-cfda-vfs-unc}"
-DEEP_TAG="${DEEP_TAG:-cfda-vfs-deep}"
+UNC_TAG="${UNC_TAG:-cfda-final-unc}"
+DEEP_TAG="${DEEP_TAG:-cfda-final-deep}"
 
 for required in "$POOL" "$DEEP_POOL"; do
   [[ -s "$required" ]] || { echo "Missing input: $required" >&2; exit 1; }

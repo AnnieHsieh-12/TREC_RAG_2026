@@ -41,10 +41,10 @@ class BuildRetrievalSubmissionTests(unittest.TestCase):
             )
             self.assertNotEqual(completed.returncode, 0)
             self.assertFalse(
-                (output / "cfda-vfs-unc/r_output_trec_rag_2026.tsv").exists()
+                (output / "cfda-final-unc/r_output_trec_rag_2026.tsv").exists()
             )
             self.assertFalse(
-                (output / "cfda-vfs-deep/r_output_trec_rag_2026.tsv").exists()
+                (output / "cfda-final-deep/r_output_trec_rag_2026.tsv").exists()
             )
 
 

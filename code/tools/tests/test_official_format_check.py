@@ -48,7 +48,7 @@ class OfficialFormatCheckTests(unittest.TestCase):
     def test_rag_accepts_direct_docid_empty_citations_and_uncited_refs(self):
         value = {
             "metadata": {
-                "team_id": "pi-serini",
+                "team_id": "example-team",
                 "run_id": "fixture",
                 "narrative_id": "1",
                 "narrative": "Example narrative",
@@ -72,7 +72,7 @@ class OfficialFormatCheckTests(unittest.TestCase):
     def test_word_limit_and_bad_citation_fail(self):
         value = {
             "metadata": {
-                "team_id": "pi-serini",
+                "team_id": "example-team",
                 "run_id": "fixture",
                 "narrative_id": "1",
                 "narrative": "Example narrative",
@@ -262,7 +262,7 @@ class OfficialFormatCheckTests(unittest.TestCase):
             rag.write_text(
                 json.dumps({
                     "metadata": {
-                        "team_id": "pi-serini",
+                        "team_id": "example-team",
                         "run_id": "fixture",
                         "narrative_id": "1",
                         "narrative": "Example narrative",

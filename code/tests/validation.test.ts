@@ -17,7 +17,7 @@ const fixture = JSON.parse(
 const args = {
   config: {
     runId: "test-run",
-    teamId: "pi-serini",
+    teamId: "example-team",
     mode: "automatic" as const,
     promptVersion: "agentic_rag_baseline_v1",
     runDesc: "test fixture",
