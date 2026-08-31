@@ -2,37 +2,38 @@
 
 [![CI](https://github.com/AnnieHsieh-12/TREC_RAG_2026/actions/workflows/ci.yml/badge.svg)](https://github.com/AnnieHsieh-12/TREC_RAG_2026/actions/workflows/ci.yml)
 
-This repository presents CFDA's final system for the TREC RAG 2026 track. It
-combines multi-route retrieval, neural reranking, adaptive evidence
-acquisition, and citation-grounded answer generation.
+This repository contains CFDA's Retrieval and RAG system for the TREC RAG 2026
+track. The system combines multi-route retrieval, neural reranking, bounded
+evidence acquisition, and citation-grounded answer generation.
 
 - **Team:** CFDA
 - **Maintainer:** [AnnieHsieh-12](https://github.com/AnnieHsieh-12)
-- **Status:** Public implementation of the final competition pipeline;
-  official 2026 results are not claimed in this repository.
+- **Status:** Public implementation of the competition system. Official 2026
+  results are not reported here.
 
-The system is designed around a simple principle: retrieve broadly, spend
-additional search only where the evidence is incomplete, and validate every
-answer before serialization. The repository focuses on the final competition
-pipeline and excludes development experiments and generated artifacts.
+The system first builds broad candidate pools, then spends additional retrieval
+only when the available evidence is insufficient. Generated answers undergo
+evidence verification, citation ordering, and strict format validation. This
+repository contains the selected system configuration and excludes exploratory
+experiments, caches, and generated run artifacts.
 
 ## System overview
 
 The system contains two related pipelines:
 
-| Pipeline | Purpose | Output |
-| --- | --- | --- |
-| Retrieval | Produce a variable-depth document ranking for each topic | Six-column TREC run |
-| Bounded RAG | Acquire sufficient evidence and generate a grounded answer | TREC RAG JSONL |
+| Pipeline    | Purpose                                                    | Output              |
+| ----------- | ---------------------------------------------------------- | ------------------- |
+| Retrieval   | Produce a variable-depth document ranking for each topic   | Six-column TREC run |
+| Bounded RAG | Acquire sufficient evidence and generate a grounded answer | TREC RAG JSONL      |
 
 TypeScript coordinates retrieval and generation, while a local Python service
 handles neural reranking, passage selection, sentence-level evidence matching,
-and an authenticated Codex CLI bridge. The selected final policy uses NCHC
+and an authenticated Codex CLI bridge. The selected configuration uses NCHC
 `gpt-oss-120b` for checklist generation and the Retrieval sufficiency judge.
 Codex `gpt-5.6-sol` handles Retrieval query/writer roles and the bounded RAG
 controller, including its sufficiency decisions and answer writing.
 
-### Key design choices
+### Design summary
 
 - **Adaptive retrieval:** an evidence-sufficiency decision determines whether
   the system stops or searches again.
@@ -40,8 +41,8 @@ controller, including its sufficiency decisions and answer writing.
   and validated follow-up queries contribute through weighted RRF.
 - **Protected ranking head:** later facet expansion and deep reranking improve
   coverage without destabilizing the highest-ranked documents.
-- **Bounded agent loop:** the RAG pipeline has explicit limits on rounds and
-  documents read, making its behavior auditable and cost-controlled.
+- **Bounded evidence loop:** the RAG pipeline places explicit limits on
+  acquisition rounds and documents read.
 - **Grounded generation:** answer revision and citation ordering operate on
   retrieved evidence before strict output validation.
 
@@ -65,7 +66,7 @@ OpenAI, and it does not exercise GPU inference.
 
 ## Retrieval pipeline
 
-![CFDA final Retrieval pipeline](docs/figures/retrieval_pipeline.png)
+![CFDA Retrieval pipeline](docs/figures/retrieval_pipeline.png)
 
 For each narrative, the Retrieval pipeline:
 
@@ -88,21 +89,21 @@ For each narrative, the Retrieval pipeline:
 8. Computes each topic's output depth from the pre-deep scores (`tau=0.20`) and
    writes a six-column TREC run.
 
-The selected Retrieval policy is defined in
+The selected Retrieval configuration is defined in
 [`code/config/final_pipeline.ts`](code/config/final_pipeline.ts).
-Its sufficiency judge uses NCHC `gpt-oss-120b`; query generation and answer-side
-reflection use `gpt-5.6-sol` through the authenticated local Codex sidecar.
+Its sufficiency judge uses NCHC `gpt-oss-120b`; query-generation and writer
+roles use `gpt-5.6-sol` through the authenticated local Codex sidecar.
 
 ## Bounded RAG pipeline
 
-![CFDA final bounded RAG pipeline](docs/figures/rag_pipeline.png)
+![CFDA bounded RAG pipeline](docs/figures/rag_pipeline.png)
 
 For each narrative, the bounded RAG pipeline:
 
 1. Retrieves BM25 top 1,000 and reranks the top 300.
 2. Initially reads 12 documents.
-3. Uses the topic-derived facet checklist and currently read evidence to decide
-   whether the evidence is sufficient.
+3. Uses a checklist generated from the narrative, together with the evidence
+   read so far, to decide whether more retrieval is needed.
 4. When evidence is insufficient, validates up to three follow-up queries. If
    a valid query and budget remain, it performs BM25 retrieval, weighted RRF,
    top-300 reranking, and reads 10 previously unseen documents.
@@ -124,13 +125,13 @@ TREC_RAG_2026/
 ├── docs/figures/                   pipeline diagrams used in this README
 ├── .github/workflows/ci.yml        automated checks
 ├── code/
-│   ├── config/final_pipeline.ts    selected final Retrieval policy
+│   ├── config/final_pipeline.ts    selected Retrieval configuration
 │   ├── scripts/                    public run/build/validation entry points
 │   ├── src/llm/                    NCHC, Codex, and optional OpenAI client
 │   ├── src/evaluation/             local qrels discovery and metrics
 │   ├── src/trec-rag-2026/
-│   │   ├── retrieval-pipeline/     final Retrieval controller
-│   │   ├── rag-pipeline/           final bounded RAG controller
+│   │   ├── retrieval-pipeline/     Retrieval controller
+│   │   ├── rag-pipeline/           bounded RAG controller
 │   │   ├── retrieval/              retrieval and reranking components
 │   │   └── shared-rag/             shared prompts, contracts, and validation
 │   ├── tools/                      checklist, deep rerank, finalization, checks
@@ -147,8 +148,8 @@ TREC_RAG_2026/
 - Python 3.12
 - Access to the ClimbMix/Pyserini service
 - NCHC credentials for the base Retrieval model
-- An authenticated Codex CLI session for the final Retrieval query/writer
-  roles and bounded RAG
+- An authenticated Codex CLI session for Retrieval query/writer roles and the
+  bounded RAG pipeline
 - A CUDA-capable GPU is recommended for neural reranking
 
 Competition services, model weights, and inputs require separate access.
@@ -185,15 +186,15 @@ cp sidecar/.env.local.example sidecar/.env.local
 
 Configure:
 
-| File | Required values |
-| --- | --- |
-| `code/.env.local` | `NCHC_API_KEY`, `PYSERINI_API_TOKEN` |
+| File                 | Required values                      |
+| -------------------- | ------------------------------------ |
+| `code/.env.local`    | `NCHC_API_KEY`, `PYSERINI_API_TOKEN` |
 | `sidecar/.env.local` | `PYSERINI_API_TOKEN`, `NCHC_API_KEY` |
 
 `SIDECAR_URL` defaults to `http://127.0.0.1:8765`. The server port can be
 changed with `SIDECAR_PORT`; use matching values when changing it.
 
-### Codex authentication for final query and generation roles
+### Codex authentication for query and generation roles
 
 The selected Retrieval and RAG policies send query-planning and answer-writing
 calls to the local sidecar, which invokes Codex CLI. Authenticate Codex on the
@@ -248,22 +249,22 @@ pipeline writes `metrics.json`, `per_topic_metrics.json`, and
 `qrels_metadata.json`; the last file records each filename and SHA-256. Without
 qrels, the normal output is produced and these diagnostic files are omitted.
 
-### Topic-derived checklist
+### Narrative checklist
 
-The final RAG launcher first derives a facet checklist from each topic
-narrative with the configured NCHC model. It does not use qrels, judgments, or
-answer text. The generated checklist guides evidence sufficiency, follow-up
-queries, and dense answer structure. Each run stores it as
+Before evidence acquisition, the RAG launcher generates a checklist from each
+narrative using the configured NCHC model. Checklist generation does not use
+qrels, judgments, or answer text. The checklist guides the sufficiency check,
+follow-up queries, and dense-answer structure. Each run stores it as
 `generated-checklist.jsonl` under its output directory.
 
-The generator emits only topic-derived aspect titles and vital/okay priority.
-It does not predict facts before retrieval; factual claims are obtained from
-ClimbMix evidence during the agent loop.
+The generator emits only aspect titles and vital/okay priorities. It does not
+predict facts before retrieval; factual claims must come from ClimbMix evidence
+collected during the run.
 
 One generated JSON object per topic:
 
 ```json
-{"qid":"topic_id","items":["first aspect","second aspect"]}
+{ "qid": "topic_id", "items": ["first aspect", "second aspect"] }
 ```
 
 See [`examples/checklist.example.jsonl`](examples/checklist.example.jsonl).
@@ -300,25 +301,25 @@ are:
 - select relevant passages from full documents;
 - retrieve sentence-level evidence for verification and citation ordering.
 
-The `/llm` Codex bridge is selected by the final RAG launcher. Retrieval and
+The RAG launcher uses the `/llm` Codex bridge. Retrieval and
 passage endpoints remain local, deterministic sidecar services.
 
-## Run the final Retrieval pipeline
+## Run the Retrieval pipeline
 
-### 1. Generate the final candidate pool
+### 1. Generate the candidate pool
 
 ```bash
 cd code
 npm run run:retrieval -- \
-  --run-id cfda-retrieval \
-  --team-id cfda \
-  --output-dir out/cfda-retrieval \
+  --run-id example-retrieval \
+  --team-id example-team \
+  --output-dir out/example-retrieval \
   --topics /path/to/topics.tsv
 ```
 
-Keep the local sidecar running during this stage. The final policy uses it for
-Codex-backed query generation and answer-side reflection; no direct OpenAI API
-key is required.
+Keep the local sidecar running during this stage. The selected configuration
+uses it for Codex-backed query-generation and writer roles; no direct OpenAI
+API key is required.
 
 Add `--qrels-dir /path/to/development-qrels` only when diagnostic metrics are
 required.
@@ -330,19 +331,19 @@ run must not proceed to submission building.
 The main candidate pool is written to:
 
 ```text
-code/out/cfda-retrieval/candidate_pool_top5000.trec
+code/out/example-retrieval/candidate_pool_top5000.trec
 ```
 
 ### 2. Run deep-tail reranking
 
 ```bash
 source ../.venv/bin/activate
-python tools/deep_ce_rerank.py out/cfda-retrieval \
+python tools/deep_ce_rerank.py out/example-retrieval \
   --head 100 \
   --depth 3000 \
   --variant 'RRF 1:1' \
   --device auto \
-  --out out/cfda-retrieval/deepce
+  --out out/example-retrieval/deepce
 ```
 
 The deep-tail stage reads the shared document cache and fetches any uncached
@@ -355,19 +356,21 @@ configurable with `--fetch-workers`, `--fetch-pace`, and
 ### 3. Build the two Retrieval outputs
 
 ```bash
-RUN_DIR="$PWD/out/cfda-retrieval" \
+RUN_DIR="$PWD/out/example-retrieval" \
 TOPICS=/path/to/topics.tsv \
+UNC_TAG=example-retrieval-unc \
+DEEP_TAG=example-retrieval-deep \
 bash scripts/build_retrieval_submissions.sh
 ```
 
 Default outputs:
 
 ```text
-code/out/retrieval-submissions/cfda-final-unc/r_output_trec_rag_2026.tsv
-code/out/retrieval-submissions/cfda-final-deep/r_output_trec_rag_2026.tsv
+code/out/retrieval-submissions/example-retrieval-unc/r_output_trec_rag_2026.tsv
+code/out/retrieval-submissions/example-retrieval-deep/r_output_trec_rag_2026.tsv
 ```
 
-## Run the final bounded RAG pipeline
+## Run the bounded RAG pipeline
 
 Keep the sidecar running, then use another terminal:
 
@@ -375,8 +378,8 @@ Keep the sidecar running, then use another terminal:
 cd code
 TOPICS=/path/to/topics.tsv \
 SIDECAR_URLS=http://127.0.0.1:8765 \
-RUN_ID=cfda-w5c \
-TEAM_ID=cfda \
+RUN_ID=example-rag \
+TEAM_ID=example-team \
 npm run run:rag
 ```
 
@@ -398,23 +401,23 @@ extra topic makes the command fail.
 Default final output:
 
 ```text
-code/out/submissions/cfda-w5c/rag_output_trec_rag_2026.jsonl
+code/out/submissions/example-rag/rag_output_trec_rag_2026.jsonl
 ```
 
 Optional environment variables:
 
-| Variable | Purpose |
-| --- | --- |
-| `OUT` | Raw RAG run directory |
-| `SUBMISSION_OUT` | Finalized submission directory; defaults to `out/submissions/$RUN_ID` |
-| `SHARDS` | Number of parallel topic shards; default `4` |
-| `SIDECAR_URLS` | Comma-separated sidecar URLs |
-| `CHECKLIST_MODEL` | NCHC model used to derive topic checklists; default `gpt-oss-120b` |
-| `CHECKLIST_REPLAY` | Optional frozen checklist used only for an explicit historical replay |
-| `PYSERINI_TOKENS` | Comma-separated tokens assigned across shards |
-| `QRELS_DIR` | Optional directory of development qrels |
-| `RUN_ID`, `TEAM_ID` | Run and team identifiers written to generated records |
-| `PYTHON` | Python executable; default `python3` |
+| Variable                       | Purpose                                                                                         |
+| ------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `OUT`                          | Raw RAG run directory                                                                           |
+| `SUBMISSION_OUT`               | Finalized submission directory; defaults to `out/submissions/$RUN_ID`                           |
+| `SHARDS`                       | Number of parallel topic shards; default `4`                                                    |
+| `SIDECAR_URLS`                 | Comma-separated sidecar URLs                                                                    |
+| `CHECKLIST_MODEL`              | NCHC model used to derive topic checklists; default `gpt-oss-120b`                              |
+| `CHECKLIST_REPLAY`             | Optional frozen checklist used only for an explicit historical replay                           |
+| `PYSERINI_TOKENS`              | Comma-separated tokens assigned across shards                                                   |
+| `QRELS_DIR`                    | Optional directory of development qrels                                                         |
+| `RUN_ID`, `TEAM_ID`            | Run and team identifiers written to generated records                                           |
+| `PYTHON`                       | Python executable; default `python3`                                                            |
 | `REPLAY_OFFICIAL_W5C_REPAIR=1` | Replay the hash-gated archival repair only when reconstructing the frozen official W5c artifact |
 
 ## Validation and tests
@@ -453,7 +456,7 @@ code/scripts/check_no_secret_leak.sh /path/to/output-directory
 
 ## Reproducibility
 
-This repository reproduces the final pipeline structure, configuration,
+This repository reproduces the selected pipeline structure, configuration,
 serialization, and validation procedure. It does not guarantee byte-identical
 reproduction of the submitted runs because the frozen checklist, generated
 outputs, external service state, and model responses are not redistributed.
@@ -465,8 +468,7 @@ outputs, external service state, and model responses are not redistributed.
 - Competition services and inputs require separate authorization.
 - Generated outputs, caches, traces, and intermediate pools remain untracked.
 
-Official submission files and generated outputs are not redistributed. This
-repository provides the final pipeline implementation and validation tools.
+Official submission files and generated outputs are not redistributed.
 
 ## Evaluation status
 
