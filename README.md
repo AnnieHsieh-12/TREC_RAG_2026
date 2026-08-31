@@ -6,6 +6,11 @@ This repository presents CFDA's final system for the TREC RAG 2026 track. It
 combines multi-route retrieval, neural reranking, adaptive evidence
 acquisition, and citation-grounded answer generation.
 
+- **Team:** CFDA
+- **Maintainer:** [AnnieHsieh-12](https://github.com/AnnieHsieh-12)
+- **Status:** Public implementation of the final competition pipeline;
+  official 2026 results are not claimed in this repository.
+
 The system is designed around a simple principle: retrieve broadly, spend
 additional search only where the evidence is incomplete, and validate every
 answer before serialization. The repository focuses on the final competition
@@ -21,8 +26,11 @@ The system contains two related pipelines:
 | Bounded RAG | Acquire sufficient evidence and generate a grounded answer | TREC RAG JSONL |
 
 TypeScript coordinates retrieval and generation, while a local Python service
-handles neural reranking, passage selection, and sentence-level evidence
-matching. The final generation path uses the OpenAI API.
+handles neural reranking, passage selection, sentence-level evidence matching,
+and an authenticated Codex CLI bridge. The selected final policy uses NCHC
+`gpt-oss-120b` for checklist generation and the Retrieval sufficiency judge.
+Codex `gpt-5.6-sol` handles Retrieval query/writer roles and the bounded RAG
+controller, including its sufficiency decisions and answer writing.
 
 ### Key design choices
 
@@ -93,7 +101,7 @@ For each narrative, the bounded RAG pipeline:
 
 1. Retrieves BM25 top 1,000 and reranks the top 300.
 2. Initially reads 12 documents.
-3. Uses the supplied facet checklist and currently read evidence to decide
+3. Uses the topic-derived facet checklist and currently read evidence to decide
    whether the evidence is sufficient.
 4. When evidence is insufficient, validates up to three follow-up queries. If
    a valid query and budget remain, it performs BM25 retrieval, weighted RRF,
@@ -118,7 +126,7 @@ TREC_RAG_2026/
 ├── code/
 │   ├── config/final_pipeline.ts    selected final Retrieval policy
 │   ├── scripts/                    public run/build/validation entry points
-│   ├── src/llm/                    OpenAI, NCHC, and optional Codex clients
+│   ├── src/llm/                    NCHC, Codex, and optional OpenAI client
 │   ├── src/evaluation/             local qrels discovery and metrics
 │   ├── src/trec-rag-2026/
 │   │   ├── retrieval-pipeline/     final Retrieval controller
@@ -139,7 +147,8 @@ TREC_RAG_2026/
 - Python 3.12
 - Access to the ClimbMix/Pyserini service
 - NCHC credentials for the base Retrieval model
-- An OpenAI API key for the final Retrieval query/writer roles and bounded RAG
+- An authenticated Codex CLI session for the final Retrieval query/writer
+  roles and bounded RAG
 - A CUDA-capable GPU is recommended for neural reranking
 
 Competition services, model weights, and inputs require separate access.
@@ -184,11 +193,11 @@ Configure:
 `SIDECAR_URL` defaults to `http://127.0.0.1:8765`. The server port can be
 changed with `SIDECAR_PORT`; use matching values when changing it.
 
-### Codex authentication for the final RAG pipeline
+### Codex authentication for final query and generation roles
 
-The final RAG pipeline sends its query-planning and answer-writing calls to
-the local sidecar, which invokes Codex CLI. Authenticate Codex on the machine
-running the service:
+The selected Retrieval and RAG policies send query-planning and answer-writing
+calls to the local sidecar, which invokes Codex CLI. Authenticate Codex on the
+machine running the service:
 
 ```bash
 npm install --global @openai/codex
@@ -216,8 +225,9 @@ and judgment availability on the [official TREC RAG website](https://trec-rag.gi
 
 ## Input files
 
-Topics and a checklist are required. Qrels are optional and are used only for
-development diagnostics. Small fictional examples are included.
+Topics are required. The normal RAG launcher derives its checklist from those
+topics automatically. Qrels are optional and are used only for development
+diagnostics. Small fictional examples are included.
 
 ### Topics TSV
 
@@ -470,8 +480,9 @@ unsupported result table is included here.
 - **Local neural service is unreachable:** start it from `sidecar/` and check
   `http://127.0.0.1:8765/health`; keep `SIDECAR_PORT` and `SIDECAR_URLS`
   consistent.
-- **Authentication fails:** verify `PYSERINI_API_TOKEN`, `NCHC_API_KEY`, and
-  `OPENAI_API_KEY` in the appropriate untracked `.env.local` file.
+- **Authentication fails:** verify `PYSERINI_API_TOKEN` and `NCHC_API_KEY` in
+  the appropriate untracked `.env.local` file, then run `codex login status`
+  on the machine hosting the sidecar.
 - **Model loading or CUDA fails:** confirm available GPU memory, or run the
   deep reranker with `--device auto` for automatic device selection.
 - **Checklist validation fails:** every topic ID must appear exactly once in
