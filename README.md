@@ -1,4 +1,4 @@
-# TREC RAG 2026 — CFDA Final Pipeline
+# CFDA TREC RAG 2026
 
 [![CI](https://github.com/AnnieHsieh-12/TREC_RAG_2026/actions/workflows/ci.yml/badge.svg)](https://github.com/AnnieHsieh-12/TREC_RAG_2026/actions/workflows/ci.yml)
 
