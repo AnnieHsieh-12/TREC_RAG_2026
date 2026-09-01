@@ -147,8 +147,6 @@ TREC_RAG_2026/
   RAG pipeline (the bridge is tested with Codex CLI 0.146.0)
 - A CUDA-capable GPU is recommended for neural reranking
 
-Competition services, model weights, and inputs require separate access.
-
 ## Installation
 
 From the repository root, install the locked TypeScript dependencies:
@@ -234,20 +232,15 @@ See [`examples/topics.example.tsv`](examples/topics.example.tsv).
 
 ### Optional qrels directory
 
-Provide a directory containing one or more `*.qrels` files. Filenames are
-discovered automatically and are used only for local metric reporting; qrels
-are never used to choose queries or evidence. When qrels are supplied, the
-pipeline writes `metrics.json`, `per_topic_metrics.json`, and
-`qrels_metadata.json`; the last file records each filename and SHA-256. Without
-qrels, the normal output is produced and these diagnostic files are omitted.
+Provide a directory containing one or more `*.qrels` files to calculate local
+diagnostic metrics. Qrels never affect query generation, retrieval, evidence
+selection, or answer writing, and normal runs do not require them.
 
 ### Narrative checklist
 
-Before evidence acquisition, the RAG launcher generates a checklist from each
-narrative using the configured model. Checklist generation does not use
-qrels, judgments, or answer text. The checklist guides the sufficiency check,
-follow-up queries, and dense-answer structure. Each run stores it as
-`generated-checklist.jsonl` under its output directory.
+Before retrieval, the RAG launcher generates a checklist from each narrative.
+It guides the sufficiency check, follow-up queries, and answer structure. Each
+run stores the checklist as `generated-checklist.jsonl` in its output directory.
 
 The generator emits only aspect titles and vital/okay priorities. It does not
 predict facts before retrieval; factual claims must come from ClimbMix evidence
@@ -392,9 +385,7 @@ npm run run:rag
 
 By default, this command generates the checklist from `TOPICS` using
 `gpt-oss-120b` before evidence acquisition begins. Set `CHECKLIST_MODEL` to a
-compatible alternative model. For an explicit historical replay only, set
-`CHECKLIST_REPLAY=/path/to/frozen-checklist.jsonl`; ordinary runs should not
-supply a checklist.
+compatible alternative model. Ordinary runs should not supply a checklist.
 
 Set `QRELS_DIR=/path/to/development-qrels` to enable optional diagnostic
 metrics.
@@ -412,37 +403,26 @@ code/out/submissions/example-rag/rag_output_trec_rag_2026.jsonl
 
 Optional environment variables:
 
-| Variable                       | Purpose                                                                                         |
-| ------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `OUT`                          | Raw RAG run directory                                                                           |
-| `SUBMISSION_OUT`               | Finalized submission directory; defaults to `out/submissions/$RUN_ID`                           |
-| `SHARDS`                       | Number of parallel topic shards; default `4`                                                    |
-| `SIDECAR_URLS`                 | Comma-separated sidecar URLs                                                                    |
-| `CHECKLIST_MODEL`              | Model used to generate narrative checklists; default `gpt-oss-120b`                             |
-| `CHECKLIST_REPLAY`             | Optional frozen checklist used only for an explicit historical replay                           |
-| `PYSERINI_TOKENS`              | Comma-separated tokens assigned across shards                                                   |
-| `QRELS_DIR`                    | Optional directory of development qrels                                                         |
-| `RUN_ID`, `TEAM_ID`            | Run and team identifiers written to generated records                                           |
-| `PYTHON`                       | Python executable; default `python3`                                                            |
-| `REPLAY_OFFICIAL_W5C_REPAIR=1` | Replay the hash-gated archival repair only when reconstructing the frozen official W5c artifact |
+| Variable            | Purpose                                                               |
+| ------------------- | --------------------------------------------------------------------- |
+| `OUT`               | Raw RAG run directory                                                 |
+| `SUBMISSION_OUT`    | Finalized submission directory; defaults to `out/submissions/$RUN_ID` |
+| `SHARDS`            | Number of parallel topic shards; default `4`                          |
+| `SIDECAR_URLS`      | Comma-separated sidecar URLs                                          |
+| `CHECKLIST_MODEL`   | Model used to generate narrative checklists; default `gpt-oss-120b`   |
+| `PYSERINI_TOKENS`   | Comma-separated tokens assigned across shards                         |
+| `QRELS_DIR`         | Optional directory of development qrels                               |
+| `RUN_ID`, `TEAM_ID` | Run and team identifiers written to generated records                 |
+
+`CHECKLIST_REPLAY=/path/to/checklist.jsonl` is available only when explicitly
+replaying a previously generated checklist; normal runs regenerate it from the
+topics file.
 
 ## Validation and tests
 
-Run all formatting, type, TypeScript, Python, and offline pipeline tests:
-
-```bash
-cd code
-npm run check
-```
-
-The smoke tests execute one Retrieval topic and one RAG topic against
-deterministic mock services, so they need no credentials or network. GitHub
-Actions runs these checks, a production dependency audit, shell syntax checks,
-and Python compilation on every push and pull request.
-
-CI validates deterministic offline paths only. External services, model
-downloads, GPU execution, and full competition runs are not exercised by
-GitHub Actions.
+The Quickstart command runs the same deterministic offline checks used by
+GitHub Actions. CI does not contact external services, download models, run GPU
+inference, or reproduce a full competition run.
 
 Validate generated Retrieval and RAG files together:
 
@@ -463,9 +443,8 @@ code/scripts/check_no_secret_leak.sh /path/to/output-directory
 ## Reproducibility
 
 This repository reproduces the pipeline structure, configuration,
-serialization, and validation procedure. It does not guarantee byte-identical
-reproduction of the submitted runs because the frozen checklist, generated
-outputs, external service state, and model responses are not redistributed.
+serialization, and validation procedure. External service state and model
+responses may prevent byte-identical reproduction of a previous run.
 
 - Node dependencies are locked by `code/package-lock.json`.
 - Sidecar and deep-reranker dependencies are resolved together in
@@ -473,15 +452,6 @@ outputs, external service state, and model responses are not redistributed.
 - Model weights come from their upstream registries.
 - Competition services and inputs require separate authorization.
 - Generated outputs, caches, traces, and intermediate pools remain untracked.
-
-Official submission files and generated outputs are not redistributed.
-
-## Evaluation status
-
-Development qrels may be used for diagnostics, but their scores must not be
-reported as official 2026 test results. Official results and judgments were
-still listed as forthcoming on the TREC RAG schedule as of August 27, 2026. No
-unsupported result table is included here.
 
 ## Troubleshooting
 
@@ -493,10 +463,6 @@ unsupported result table is included here.
   on the machine hosting the sidecar.
 - **Model loading or CUDA fails:** confirm available GPU memory, or run the
   deep reranker with `--device auto` for automatic device selection.
-- **Checklist validation fails:** every topic ID must appear exactly once in
-  both the topics TSV and checklist JSONL.
-- **Final validation fails:** inspect `validation.json` and
-  `failed_topics.json`; incomplete output must not be submitted.
 
 ## License
 
