@@ -115,7 +115,9 @@ For each narrative, the RAG pipeline:
 ```text
 TREC_RAG_2026/
 ├── README.md
-├── examples/                       fictional input examples
+├── requirements.in                direct Python dependencies
+├── requirements.lock              resolved Python 3.12 environment
+├── examples/                       minimal format examples
 ├── docs/figures/                   pipeline diagrams used in this README
 ├── .github/workflows/ci.yml        automated checks
 ├── code/
@@ -132,7 +134,6 @@ TREC_RAG_2026/
 │   └── tests/                      deterministic offline smoke tests
 └── sidecar/
     ├── src/sidecar.py              localhost HTTP service
-    ├── requirements.lock           fully resolved Python environment
     └── README.md                   endpoint and configuration details
 ```
 
@@ -143,7 +144,7 @@ TREC_RAG_2026/
 - Access to the ClimbMix/Pyserini service
 - API credentials for the `gpt-oss-120b` service
 - An authenticated Codex CLI session for Retrieval query/writer roles and the
-  RAG pipeline
+  RAG pipeline (the bridge is tested with Codex CLI 0.146.0)
 - A CUDA-capable GPU is recommended for neural reranking
 
 Competition services, model weights, and inputs require separate access.
@@ -164,8 +165,7 @@ dependencies:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r code/requirements-deepce.txt
-pip install -r sidecar/requirements.lock
+python -m pip install --requirement requirements.lock
 ```
 
 ## Configuration
@@ -295,6 +295,20 @@ reranking model into an ignored local cache. Its RAG responsibilities are:
 
 The RAG launcher uses the `/llm` Codex bridge. Retrieval and passage endpoints
 remain local, deterministic sidecar services.
+
+### Codex bridge trust boundary
+
+Retrieved document text is untrusted input. The `/llm` bridge starts every
+Codex request in a new empty workspace, removes pipeline credentials from the
+child environment, disables optional tool surfaces, ignores user configuration
+and rules, and uses an ephemeral read-only session with approvals disabled. A
+Codex CLI version that does not support these restrictions fails closed.
+
+The bridge still relies on the host's authenticated Codex session. Run the
+sidecar only on a trusted machine, keep it bound to `127.0.0.1`, and never
+expose port 8765 to other hosts. For stronger multi-tenant isolation, replace
+the bridge with a model API call that does not provide tools or run it inside a
+container that has no project, credential, or cache mounts.
 
 ## Run the Retrieval pipeline
 
@@ -453,8 +467,8 @@ reproduction of the submitted runs because the frozen checklist, generated
 outputs, external service state, and model responses are not redistributed.
 
 - Node dependencies are locked by `code/package-lock.json`.
-- Sidecar dependencies are fully resolved in `sidecar/requirements.lock`.
-- Platform-sensitive deep-reranker dependencies are directly version-pinned.
+- Sidecar and deep-reranker dependencies are resolved together in
+  `requirements.lock` for CPython 3.12 on Linux x86-64.
 - Model weights come from their upstream registries.
 - Competition services and inputs require separate authorization.
 - Generated outputs, caches, traces, and intermediate pools remain untracked.

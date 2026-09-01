@@ -1,0 +1,9 @@
+# Direct Python dependencies for the sidecar and deep cross-encoder reranker.
+# Compile on CPython 3.12 / Linux x86_64 with:
+#   python -m piptools compile --resolver=backtracking --output-file=requirements.lock requirements.in
+fastembed==0.8.0
+numpy==2.5.2
+python-dotenv==1.2.3
+requests==2.34.2
+torch==2.7.1
+transformers==4.55.2

@@ -1,4 +1,0 @@
-# Direct dependencies for the optional deep cross-encoder stage.
-# Install the matching PyTorch wheel for the target CPU/CUDA platform when needed.
-torch==2.7.1
-transformers==4.55.2

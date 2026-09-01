@@ -11,7 +11,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: code
@@ -31,6 +31,22 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install locked Python dependencies
+        working-directory: ${{ github.workspace }}
+        run: python -m pip install --requirement requirements.lock
+
+      - name: Verify Python dependency imports
+        working-directory: ${{ github.workspace }}
+        run: |
+          python -c 'import huggingface_hub; print(huggingface_hub.__version__)'
+          python -c 'import tokenizers; print(tokenizers.__version__)'
+          python -c 'import transformers; print(transformers.__version__)'
+          python -c 'import torch; print(torch.__version__)'
+          python -c 'import fastembed; print(fastembed.__version__)'
+          python -m pip check
 
       - name: Install locked dependencies
         run: npm ci

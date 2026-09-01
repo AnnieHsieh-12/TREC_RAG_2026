@@ -307,8 +307,7 @@ def main():
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
     except ImportError as error:
         ap.error(
-            "deep reranking dependencies are missing; install "
-            "code/requirements-deepce.txt"
+            "deep reranking dependencies are missing; install requirements.lock"
         )
 
     pool = load_pool(args.run)
