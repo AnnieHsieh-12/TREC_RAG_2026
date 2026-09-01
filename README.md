@@ -301,8 +301,9 @@ remain local, deterministic sidecar services.
 Retrieved document text is untrusted input. The `/llm` bridge starts every
 Codex request in a new empty workspace, removes pipeline credentials from the
 child environment, disables optional tool surfaces, ignores user configuration
-and rules, and uses an ephemeral read-only session with approvals disabled. A
-Codex CLI version that does not support these restrictions fails closed.
+and rules, and uses an ephemeral read-only session with approvals disabled.
+Strict configuration validation makes an unsupported flag or feature name fail
+before the request runs.
 
 The bridge still relies on the host's authenticated Codex session. Run the
 sidecar only on a trusted machine, keep it bound to `127.0.0.1`, and never

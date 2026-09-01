@@ -26,6 +26,6 @@ Retrieved documents are untrusted. Each Codex request runs in a new empty
 workspace with pipeline credentials removed from its environment. The bridge
 disables shell, browser, app, MCP, plugin, hook, skill, and related tool
 surfaces; ignores user configuration and rules; uses an ephemeral read-only
-session; and permits no approval escalation. Unsupported CLI versions fail
-closed. Keep this service on `127.0.0.1`; do not expose it as a shared network
-endpoint.
+session; and permits no approval escalation. Strict configuration validation
+rejects unsupported flags or feature names before a request runs. Keep this
+service on `127.0.0.1`; do not expose it as a shared network endpoint.

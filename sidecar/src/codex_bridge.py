@@ -75,6 +75,7 @@ def build_codex_command(
         "--ephemeral",
         "--ignore-user-config",
         "--ignore-rules",
+        "--strict-config",
         "--sandbox",
         "read-only",
         "-c",

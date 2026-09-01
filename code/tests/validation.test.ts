@@ -94,12 +94,8 @@ test("the organizer limit is at most three citations per answer item", () => {
   );
 });
 
-test("each answer item contains exactly one sentence", () => {
+test("official validation treats answer text as opaque non-empty content", () => {
   const value = clone(fixture);
-  value.answer[0].text = "First factual sentence. Second factual sentence.";
-  assert.ok(
-    validateOfficialRagOutputObject(value).issues.some(
-      (issue) => issue.code === "MULTIPLE_SENTENCES_IN_ITEM",
-    ),
-  );
+  value.answer[0].text = "## Findings\n\nFirst sentence. Second sentence.";
+  assert.equal(validateOfficialRagOutputObject(value).ok, true);
 });

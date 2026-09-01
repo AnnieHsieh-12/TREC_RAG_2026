@@ -51,6 +51,11 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Install and verify the supported Codex CLI
+        run: |
+          npm install --global @openai/codex@0.146.0
+          codex --version | grep -F '0.146.0'
+
       - name: Run type, unit, and offline smoke tests
         run: npm run check
 

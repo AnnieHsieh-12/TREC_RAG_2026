@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import unittest
 
@@ -46,6 +48,7 @@ class CodexBridgeTests(unittest.TestCase):
         self.assertIn("--ephemeral", command)
         self.assertIn("--ignore-user-config", command)
         self.assertIn("--ignore-rules", command)
+        self.assertIn("--strict-config", command)
         self.assertIn("--sandbox read-only", joined)
         self.assertIn('approval_policy="never"', command)
         self.assertIn('web_search="disabled"', command)
@@ -64,6 +67,28 @@ class CodexBridgeTests(unittest.TestCase):
         ):
             self.assertIn(feature, command)
         self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", command)
+
+    @unittest.skipUnless(shutil.which("codex"), "Codex CLI is not installed")
+    def test_real_cli_rejects_an_unknown_config_override(self):
+        command = build_codex_command(
+            shutil.which("codex") or "codex",
+            "test-model",
+            "/tmp/codex-bridge-parser-test.out",
+            "This prompt must not run.",
+        )
+        prompt = command.pop()
+        command.extend(
+            ("-c", "codex_bridge_unknown_config_sentinel=true", prompt)
+        )
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("codex_bridge_unknown_config_sentinel", completed.stderr)
 
     def test_untrusted_document_runs_in_empty_private_workspace(self):
         observed = {}

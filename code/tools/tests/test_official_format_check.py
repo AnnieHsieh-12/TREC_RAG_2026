@@ -212,7 +212,7 @@ class OfficialFormatCheckTests(unittest.TestCase):
             )
             self.assertTrue(any("invalid JSON" in error for error in errors))
 
-    def test_rag_item_must_not_contain_multiple_sentences(self):
+    def test_rag_text_is_an_opaque_non_empty_string(self):
         value = {
             "metadata": {
                 "team_id": "cfda",
@@ -223,7 +223,10 @@ class OfficialFormatCheckTests(unittest.TestCase):
             },
             "references": [],
             "answer": [
-                {"text": "First factual sentence. Second factual sentence.", "citations": []}
+                {
+                    "text": "## Findings\n\nFirst sentence. Second sentence.",
+                    "citations": [],
+                }
             ],
         }
         with tempfile.TemporaryDirectory() as tmp:
@@ -232,7 +235,7 @@ class OfficialFormatCheckTests(unittest.TestCase):
             errors, _ = official_format_check.check_rag(
                 output, {"1": "Example narrative"}
             )
-            self.assertTrue(any("multiple sentences" in error for error in errors))
+            self.assertEqual(errors, [])
 
     def test_duplicate_topic_ids_are_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:

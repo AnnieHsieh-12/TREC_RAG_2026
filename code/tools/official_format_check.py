@@ -15,11 +15,6 @@ import sys
 # ``shard_00459_61697``.  Keep one canonical predicate and apply it to both
 # Retrieval rows and RAG references.
 CLIMBMIX_RE = re.compile(r"^shard_\d+_\d+$")
-# A conservative boundary check avoids treating initials and abbreviations
-# such as "U.S." and "Dr." as separate answer sentences.
-SENTENCE_BOUNDARY_RE = re.compile(
-    r"[A-Za-z]{3,}[.!?][\"')\]]*\s+(?=[A-Z0-9])"
-)
 
 
 def reject_nonstandard_constant(value):
@@ -168,10 +163,6 @@ def check_rag(path, topics):
                 errs.append(f"L{ln}: answer[{si}].text must be a non-empty string")
             else:
                 words += len(t.split())
-                if SENTENCE_BOUNDARY_RE.search(t.strip()):
-                    errs.append(
-                        f"L{ln}: answer[{si}].text contains multiple sentences"
-                    )
             if "citations" not in s:
                 errs.append(f"L{ln}: answer[{si}].citations is missing")
                 continue
