@@ -7,7 +7,7 @@ track. The system combines multi-route retrieval, neural reranking, iterative
 evidence acquisition, and citation-grounded answer generation.
 
 - **Team:** CFDA
-- **Maintainer:** [AnnieHsieh-12](https://github.com/AnnieHsieh-12)
+- **Maintainer:** [AnnieHsieh-12](https://github.com/AnnieHsieh-12) and [Shaohua-Wu-001](https://github.com/Shaohua-Wu-001)
 - **Status:** Public implementation of the competition system. Official 2026
   results are not reported here.
 
